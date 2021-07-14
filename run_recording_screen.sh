@@ -1,0 +1,2 @@
+recordmydesktop $@ &
+echo "$!"
