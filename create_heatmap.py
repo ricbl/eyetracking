@@ -12,6 +12,7 @@ from scipy.stats import multivariate_normal
 import torchxrayvision as xrv
 
 length_embedding = 128
+list_of_users = sorted(['user1','user2','user3','user4','user5'])
 
 def get_gaussian(y,x,sy,sx, sizey,sizex, shown_rects_image_space):
     mu = [y-shown_rects_image_space[1],x-shown_rects_image_space[0]]
@@ -120,7 +121,7 @@ def create_heatmaps(filename_edf, filename_images, total_trials, screen_heatmap=
         df_this_trial = df_this_trial[df_this_trial['screen']==screen_heatmap]
         filpath_image_this_trial = df_so[trial-1]
         image = open_dicom(filpath_image_this_trial)
-        for user in sorted(['user1','user2','user3','user4','user5']):
+        for user in list_of_users:
             print(user)
             df_this_users = df_this_trial[df_this_trial['user']==user]
             if len(df_this_users)>0:
@@ -196,7 +197,7 @@ def open_dicom(filpath_image_this_trial):
 
 def create_embeddings(filename_edf, filename_images, emb_filename, all_trials):
     h5_index = 0
-    list_of_users = sorted(['user1','user2','user3','user4','user5'])
+    
     with h5py.File(emb_filename, "w") as h5_f:
         df = pd.read_csv(filename_edf)
         with open(filename_images) as f:
@@ -220,32 +221,27 @@ def create_embeddings(filename_edf, filename_images, emb_filename, all_trials):
                 h5_f.create_dataset('trial_n_'+f'{h5_index:06}', data=np.array([trial]))
                 h5_index += 1
 
-def get_embeddings_phase_2():
+def get_embeddings_phase_2(discard_df):
     all_trials = {}
-    all_trials['user1'] = [x for x in range(1,51) if x not in {6,40,47,48}]
-    all_trials['user2'] = [x for x in range(1,51) if x not in {4,14,15}]
-    all_trials['user3'] = [x for x in range(1,51) if x not in {1,46}]
-    all_trials['user4'] = [x for x in range(1,51) if x not in {}]
-    all_trials['user5'] = [x for x in range(1,51) if x not in {1}]
+    for user in list_of_users:
+        all_trials[user] = [x for x in range(51) if x not in discard_df[discard_df['user']==user]['trial'].values]
     
-    create_embeddings('./summary_edf_phase_2.csv', './anonymous_collected_data/phase_2/image_paths_preexperiment_4.txt',"embeddings_phase_2.hdf5", all_trials)
+    create_embeddings('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',"embeddings_phase_2.hdf5", all_trials)
 
-def get_embeddings_phase_1():
+def get_embeddings_phase_1(discard_df):
     all_trials = {}
-    all_trials['user1'] = [x for x in range(2,61) if x not in {1,6,7,8,41}]
-    all_trials['user2'] = [x for x in range(2,61) if x not in {15,27,32}]
-    all_trials['user3'] = [x for x in range(2,61) if x not in {14,44}]
-    all_trials['user4'] = [x for x in range(2,61) if x not in {7}]
-    all_trials['user5'] = [x for x in range(2,61) if x not in {}]
+    for user in list_of_users:
+        all_trials[user] = [x for x in range(61) if x not in discard_df[discard_df['user']==user]['trial'].values]
     
     
-    create_embeddings('./summary_edf_phase_1.csv', './anonymous_collected_data/image_paths_preexperiment_3.txt',"embeddings_phase_1.hdf5", all_trials)
+    create_embeddings('./summary_edf_phase_1.csv', './anonymized_collected_data/image_paths_preexperiment_3.txt',"embeddings_phase_1.hdf5", all_trials)
     
 if __name__ == '__main__':
-    # create_heatmaps('./summary_edf_phase_2.csv', './anonymous_collected_data/phase_2/image_paths_preexperiment_4.txt',60, 9, './results_phase_2.csv',folder_name='heatmaps_phase_2_0.98')
-    # create_heatmaps('./summary_edf_phase_2.csv', './anonymous_collected_data/phase_2/image_paths_preexperiment_4.txt',60, folder_name='heatmaps_gaussian_phase_2_0.98')
-    # create_heatmaps('./summary_edf_phase_1.csv', './anonymous_collected_data/phase_1/image_paths_preexperiment_3.txt',60, folder_name='heatmaps_phase_1_0.98')
+    # create_heatmaps('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',60, 9, './results_phase_2.csv',folder_name='heatmaps_phase_2_0.98')
+    # create_heatmaps('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',60, folder_name='heatmaps_gaussian_phase_2_0.98')
+    # create_heatmaps('./summary_edf_phase_1.csv', './anonymized_collected_data/phase_1/image_paths_preexperiment_3.txt',60, folder_name='heatmaps_phase_1_0.98')
     
-    get_embeddings_phase_1()
-    get_embeddings_phase_2()
-    # create_embeddings('./summary_edf_phase_2.csv', './anonymous_collected_data/phase_2/image_paths_preexperiment_4.txt',"embeddings_phase_2.hdf5", 50)
+    discard_df = pd.read_csv('discard_cases.csv')
+    get_embeddings_phase_1(discard_df[discard_df['phase']==1])
+    get_embeddings_phase_2(discard_df[discard_df['phase']==2])
+    # create_embeddings('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',"embeddings_phase_2.hdf5", 50)

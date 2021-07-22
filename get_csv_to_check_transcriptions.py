@@ -55,7 +55,7 @@ def analyze_interrater_reliability():
     # title_start = 'trim_start'
     # class_start = 'ScreenTranscriptionEditing'
     
-    data_folders = glob.glob(f"anonymous_collected_data/{phase}/*/")
+    data_folders = glob.glob(f"anonymized_collected_data/{phase}/*/")
     results_csv = pd.DataFrame()
     original_transcriptions_csv = pd.DataFrame()
     for index_data_folder,data_folder in enumerate(sorted(data_folders)):

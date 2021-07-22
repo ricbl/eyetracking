@@ -281,9 +281,9 @@ def main():
     #     user = data_folder.split('_')[0]
     #     for key,value in {'train':range(1,46),'val':range(46,61)}.items():
     #         for trial in value:
-    #             if os.path.exists('../../anonymous_collected_data/'+data_folder +'/'+str(trial)+'.wav'):
-    #                 copyfile('../../anonymous_collected_data/'+data_folder +'/'+str(trial)+'.wav', '/../../ibm/Train-Custom-Speech-Model/data/' + user + '_'+key+'audio/'+str(trial)+'.wav')
-    #         # convert_structured_output('../../anonymous_collected_data/'+data_folder +'/structured_output.csv', '../../ibm/Train-Custom-Speech-Model/data/' + user + '_'+key+'txt', value)
+    #             if os.path.exists('../../anonymized_collected_data/'+data_folder +'/'+str(trial)+'.wav'):
+    #                 copyfile('../../anonymized_collected_data/'+data_folder +'/'+str(trial)+'.wav', '/../../ibm/Train-Custom-Speech-Model/data/' + user + '_'+key+'audio/'+str(trial)+'.wav')
+    #         # convert_structured_output('../../anonymized_collected_data/'+data_folder +'/structured_output.csv', '../../ibm/Train-Custom-Speech-Model/data/' + user + '_'+key+'txt', value)
     # 1/0
     # for radiologist in ['user1', 'user2', 'user3', 'user4', 'user5']:
     #     sed_to_corpora('../../ibm/Train-Custom-Speech-Model/data/' + radiologist + '_traintxt_phase_2', 'corpus_'+radiologist+'-invert_period'+'_phase_2'+'.txt')

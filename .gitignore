@@ -30,7 +30,7 @@ results_phase_2
 *.asc
 *.txt
 collected_data
-anonymous_collected_data
+anonymized_collected_data
 *.ogv
 *.mpg
 *.mpeg

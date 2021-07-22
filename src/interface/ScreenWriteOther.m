@@ -1,7 +1,7 @@
 classdef ScreenWriteOther < InteractiveScreen
     methods
         function s = ScreenWriteOther(mainWindow)
-            question = @(mainWindow)['Write what the other findings were, separating them with a ";" or a new line.'];
+            question = @(mainWindow)['Write what the other findings were, separating them with a ";", a new line or a "|".'];
             %input_obj = InteractiveInputText(mainWindow,mainWindow.margin+10, mainWindow.get_center_y - mainWindow.screenRect(2), question, 'center', mainWindow.get_center_y-mainWindow.screenRect(2)-150);
             input_obj = TextBox(mainWindow,[mainWindow.margin+10, mainWindow.get_center_y - mainWindow.screenRect(2)-(mainWindow.screenRect(4)-mainWindow.screenRect(2))*0.3+(ceil(length(question(mainWindow))*mainWindow.character_width/(mainWindow.screenRect(3)-mainWindow.screenRect(1)-2*mainWindow.margin))*mainWindow.fontSize)*1.2, mainWindow.screenRect(3)-mainWindow.margin-10-mainWindow.screenRect(1), 0 ],'');
             instructions = InteractiveGenericText(mainWindow, question, mainWindow.margin+10, mainWindow.get_center_y - mainWindow.screenRect(2)-(mainWindow.screenRect(4)-mainWindow.screenRect(2))*0.3, floor((mainWindow.screenRect(3)-mainWindow.screenRect(1) - 2*mainWindow.margin-20)/mainWindow.character_width));

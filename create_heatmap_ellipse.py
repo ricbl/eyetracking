@@ -61,5 +61,5 @@ def create_heatmaps(filename_edf, filename_images, total_trials, screen_heatmap=
                 # im.save(folder_name+'/'+str(trial)  + '_'  + user + '_' + "heatmap.png")
 
 if __name__ == '__main__':
-    create_heatmaps('./summary_edf_phase_2.csv', './anonymous_collected_data/phase_2/image_paths_preexperiment_4.txt',60, folder_name='heatmaps_gaussian_phase_2_0.98')
-    create_heatmaps('./summary_edf_phase_1.csv', './anonymous_collected_data/phase_1/image_paths_preexperiment_3.txt',60, folder_name='heatmaps_phase_1_0.98')
+    create_heatmaps('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',60, folder_name='heatmaps_gaussian_phase_2_0.98')
+    create_heatmaps('./summary_edf_phase_1.csv', './anonymized_collected_data/phase_1/image_paths_preexperiment_3.txt',60, folder_name='heatmaps_phase_1_0.98')

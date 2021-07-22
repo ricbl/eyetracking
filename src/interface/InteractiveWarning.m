@@ -15,7 +15,7 @@ classdef InteractiveWarning  < InteractiveTemplate
             s@InteractiveTemplate(Depths.box_depth,'InteractiveWarning', mainWindow, 1);
             edffile = s.mainWindow.et.part_1_edffile;
 %                  edffile = '../../experiments/test_204_20210301-173835-9614/et1.EDF';
-%                  edffile = ['../../anonymous_collected_data/user1_et/et', num2str(s.mainWindow.current_trial), '.EDF'];
+%                  edffile = ['../../anonymized_collected_data/user1_et/et', num2str(s.mainWindow.current_trial), '.EDF'];
 %                 edffile = '../../experiments/user3_204_20210311-101017-9152/et39.EDF';
             trim_file = [edffile,'_warning.txt'];
             if ~isfile(trim_file)
@@ -56,7 +56,7 @@ classdef InteractiveWarning  < InteractiveTemplate
 %                 if ~isfile(edffile)
 %                 trim_start = splitlines(fileread([edffile,'_warning.txt']));
 % %                  edffile = '../../experiments/test_204_20210301-173835-9614/et1.EDF';
-% %                  edffile = ['../../anonymous_collected_data/phase_2/user2_et/et', num2str(s.mainWindow.current_trial), '.EDF'];
+% %                  edffile = ['../../anonymized_collected_data/phase_2/user2_et/et', num2str(s.mainWindow.current_trial), '.EDF'];
 % %                 edffile = '../../experiments/user3_204_20210311-101017-9152/et39.EDF';
 %                 script_name = 'run_check_eytracking_quality.sh';
 %                 edffile

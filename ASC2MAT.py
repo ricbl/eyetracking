@@ -538,7 +538,7 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
     return current_pupil_normalization, dfs
 
 def create_csv_gaze_phase_2():
-    root_folders = 'anonymous_collected_data/phase_2/'
+    root_folders = 'anonymized_collected_data/phase_2/'
     data_folders = ['user2_204_20210308-080302-9152',
     'user1_204_20210301-141046-2142',
     'user1_204_20210301-143153-9220',
@@ -553,13 +553,16 @@ def create_csv_gaze_phase_2():
     dfs = defaultdict(lambda: pd.DataFrame(columns=columns_csv))
     for folder in data_folders:
         user = folder.split('_')[0]
+        print(results_df)
         results_df_this_user = results_df[results_df['user']==user]
+        print(results_df_this_user)
         discard_df_this_user = discard_df[discard_df['user']==user]
         pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2)
         for trial_csv_key in trial_csv.keys():
             dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
         for trial in range(1,51):
             results_df_this_user_this_trial = results_df_this_user[results_df_this_user['trial']!='all']
+            
             results_df_this_user_this_trial = results_df_this_user_this_trial[results_df_this_user_this_trial['trial'].values.astype(float)==trial]
             
             discard_df_this_user_this_trial = discard_df_this_user[discard_df_this_user['trial'].values.astype(float)==trial]
@@ -592,7 +595,7 @@ def create_csv_gaze_phase_2():
 
 def create_csv_gaze_phase_3():
     root_folders = ''
-    data_folders = glob.glob("anonymous_collected_data/phase_3/*/")
+    data_folders = glob.glob("anonymized_collected_data/phase_3/*/")
     results_df = pd.read_csv('./results_phase_3.csv')
     discard_df = pd.read_csv('./discard_cases.csv')
     discard_df = discard_df[discard_df['phase'] == 3]
@@ -610,7 +613,8 @@ def create_csv_gaze_phase_3():
             results_df_this_user_this_trial = results_df_this_user[results_df_this_user['trial']!='all']
             results_df_this_user_this_trial = results_df_this_user_this_trial[results_df_this_user_this_trial['trial'].values.astype(float)==trial]
             discard_df_this_user_this_trial = discard_df_this_user[discard_df_this_user['trial'].values.astype(float)==trial]
-            
+            if len(results_df_this_user_this_trial)==0 and len(discard_df_this_user_this_trial)>0:
+                continue
             chestbox_df_this_trial = results_df_this_user_this_trial[list(map(lambda x: x.startswith('ChestBox (Rectangle) coord'), results_df_this_user_this_trial['title']))]
             if len(chestbox_df_this_trial)==0:
                 x1 = None
@@ -640,13 +644,13 @@ def create_csv_gaze_phase_3():
     df.to_csv('./summary_edf_phase_3.csv')
 
 def create_csv_gaze_phase_1():
-    root_folders = 'anonymous_collected_data/phase_1/'
+    root_folders = 'anonymized_collected_data/phase_1/'
     data_folders = [ 'user3_203_20201210-101303-6691',
-    'user_203_20201217-083511-9152', 
+    'user3_203_20201217-083511-9152', 
     'user5_203_20201113', 
     'user2_203_20201201-092234-9617', 
     'user1_203_20201216-141859-3506',
-     'uer1_203_20201216-142259-5921',
+     'user1_203_20201216-142259-5921',
       'user1_203_20201218-142722-8332', 
       'user1_203_20201223-140239-9152', 
       'user4_203_20201222-150420-9152', 
@@ -695,6 +699,6 @@ def create_csv_gaze_phase_1():
     df.to_csv('./summary_edf_phase_1.csv')
 
 if __name__ == '__main__':
-    # create_csv_gaze_phase_3()
-    create_csv_gaze_phase_1()
-    create_csv_gaze_phase_2()
+    # create_csv_gaze_phase_1()
+    # create_csv_gaze_phase_2()
+    create_csv_gaze_phase_3()

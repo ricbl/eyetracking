@@ -226,7 +226,7 @@ def analyze_interrater_reliability():
     'phase_2/user5_204_20210302-145812-8332', 
     'phase_2/user2_204_20210308-080302-9152', 
     'phase_2/user3_204_20210311-101017-9152',
-    'phase_2/user2_204_20210311-121106-2142' ]
+    'phase_2/user3_204_20210311-121106-2142' ]
     labels_table = defaultdict(dict)
     chest_table = defaultdict(dict)
     box_table = defaultdict(dict)
@@ -237,7 +237,7 @@ def analyze_interrater_reliability():
         print(data_folder)
         user = data_folder.split('/')[-1].split('_')[0]
         # print(user)
-        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv('anonymous_collected_data/'+data_folder +'/structured_output.csv', results_csv, user, 'phase_2_transcriptions.csv')
+        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv('anonymized_collected_data/'+data_folder +'/structured_output.csv', results_csv, user, 'anonymized_collected_data/phase_2/phase_2_transcriptions_anon.csv')
         labels_table[user].update(answers)
         chest_table[user].update(all_coord_chest)
         box_table[user].update(all_coord_box)

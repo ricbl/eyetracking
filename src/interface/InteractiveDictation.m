@@ -83,7 +83,7 @@ classdef InteractiveDictation < InteractiveTemplate
             filename = char(strcat(s.runDir, "/", int2str(s.structured_output.current_trial), '.wav'));
             s.structured_output.add_message(class(s),'audio_filename', filename);
             audiowrite(filename, y, 48000);
-            %copyfile('/home/eye/Documents/projects/eyetracking/anonymous_collected_data/phase_1/user5_203_20201113/23.wav',filename);
+            %copyfile('/home/eye/Documents/projects/eyetracking/anonymized_collected_data/phase_1/user5_203_20201113/23.wav',filename);
             
             s.recording = false;
             interaction_map = containers.Map({'exit'}, {ChangeScreen.No});

@@ -205,7 +205,7 @@ def convert_center_axis_to_corners(rect):
     return [rect[0]-rect[2], rect[1]-rect[3],rect[0]+rect[2],rect[1]+rect[3]]
 
 def analyze_interrater_reliability():
-    data_folders = ['user1_203_20201216-141859-3506','user3_203_20201210-101303-6691','user3_203_20201217-083511-9152', 'user2_203_20201201-092234-9617',  'user1_203_20201216-142259-5921', 'user_203_20201218-142722-8332', 'user1_203_20201223-140239-9152', 'user4_203_20201222-150420-9152', 'user5_203_20201113', 'user4_203_20210104-130049-9152']
+    data_folders = ['user1_203_20201216-141859-3506','user3_203_20201210-101303-6691','user3_203_20201217-083511-9152', 'user2_203_20201201-092234-9617',  'user1_203_20201216-142259-5921', 'user1_203_20201218-142722-8332', 'user1_203_20201223-140239-9152', 'user4_203_20201222-150420-9152', 'user5_203_20201113', 'user4_203_20210104-130049-9152']
     # data_folders = [ 'user2_203_20201201-092234-9617', 'user4_203_20201222-150420-9152', 'user4_203_20210104-130049-9152','user1_203_20201216-141859-3506','user1_203_20201216-142259-5921', 'user1_203_20201218-142722-8332', 'user1_203_20201223-140239-9152', 'user5_203_20201113','user3_203_20201210-101303-6691','user3_203_20201217-083511-9152']
     labels_table = defaultdict(dict)
     chest_table = defaultdict(dict)
@@ -217,7 +217,7 @@ def analyze_interrater_reliability():
         # print(data_folder)
         user = data_folder.split('_')[0]
         # print(user)
-        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv('anonymous_collected_data/phase_1/'+data_folder +'/structured_output.csv', results_csv, user,, 'phase_1_transcriptions.csv')
+        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv('anonymized_collected_data/phase_1/'+data_folder +'/structured_output.csv', results_csv, user,'anonymized_collected_data/phase_1/phase_1_transcriptions_anon.csv')
         labels_table[user].update(answers)
         chest_table[user].update(all_coord_chest)
         box_table[user].update(all_coord_box)

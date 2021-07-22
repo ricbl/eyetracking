@@ -7,6 +7,8 @@ import os
 import pickle
 import numpy as np
 from libindic.syllabifier import Syllabifier
+import glob
+
 instance = Syllabifier()
 
 list_of_users = sorted(['user1','user2','user3','user4','user5'])
@@ -181,78 +183,70 @@ def get_timestamp_for_case(json_filename,json_trim_filename,string_real, use_tri
 
 def get_joined_json_from_folder(experiment_folder, results_file, all_trials, user, use_trim):
     transcriptions_file = pd.read_csv(results_file)
-    transcriptions_file = transcriptions_file[transcriptions_file['title']=='transcription']
     transcriptions_file = transcriptions_file[transcriptions_file['user']==user]
     
     all_timestamps = {}
+    
     for trial in all_trials:
         json_filename = experiment_folder + '/' + str(trial) + '_1.0.json'
         json_trim_filename = experiment_folder + '/' + str(trial) + '_trim.json'
+        print(json_filename)
         if os.path.isfile(json_filename):
             transcriptions_file_this_trial = transcriptions_file[transcriptions_file['trial'].astype(float)==trial]
             transcriptions_file_this_trial = transcriptions_file_this_trial.replace(np.nan, '', regex=True)
             assert(len(transcriptions_file_this_trial)==1)
-            string_real = transcriptions_file_this_trial['value'].values[0].lower()
+            string_real = transcriptions_file_this_trial['transcription'].values[0].lower()
             new_timestamps = get_timestamp_for_case(json_filename,json_trim_filename,string_real,use_trim)
             with open(experiment_folder + '/' + str(trial) + '_joined.json', 'w') as outfile:
                 json.dump(new_timestamps, outfile)
             new_timestamps['user'] = list_of_users.index(user)
             new_timestamps['trial'] = trial
             all_timestamps[trial] = new_timestamps
+    
     return all_timestamps
 
 def get_all_joined_json(experiment_folders, suffix,all_trials, results_file, use_trim = True):
     timestamps_by_user = defaultdict(dict)
     for experiment_folder in experiment_folders:
-        user = experiment_folder.split('/')[-1].split('_')[0]
+        user = experiment_folder.split('/')[-2].split('_')[0]
         timestamps_by_user[user].update(get_joined_json_from_folder(experiment_folder, results_file, all_trials[user], user, use_trim))
     all_timestamps = []
     for user in list_of_users:
         for trial in all_trials[user]:
+            print(timestamps_by_user[user].keys())
             all_timestamps.append(timestamps_by_user[user][trial])
     with open('all_timestamps'+suffix+'.json', 'w') as outfile:
         json.dump({'all_timestamps':all_timestamps}, outfile)
 
-def get_all_joined_json_phase_2():
+def get_all_joined_json_phase_3(discard_df):
     all_trials = {}
-    all_trials['user1'] = [x for x in range(1,51) if x not in {6,40,47,48}]
-    all_trials['user2'] = [x for x in range(1,51) if x not in {4,14,15}]
-    all_trials['user3'] = [x for x in range(1,51) if x not in {1,46}]    
-    all_trials['user4'] = [x for x in range(1,51) if x not in {}]
-    all_trials['user5'] = [x for x in range(1,51) if x not in {1}]
+    total_trials = {'user1':515,'user2':510,'user3':509,'user4':504,'user5':511}
+    for user in list_of_users:
+        all_trials[user] = [x for x in range(1,total_trials[user]+1) if x not in discard_df[discard_df['user']==user]['trial'].values]
 
 
-    experiment_folders = ['anonymous_collected_data/phase_2/user2_204_20210308-080302-9152',
-    'anonymous_collected_data/phase_2/user1_204_20210301-141046-2142',
-    'anonymous_collected_data/phase_2/user1_204_20210301-143153-9220',
-    'anonymous_collected_data/phase_2/user4_204_20210303-133107-9152',
-    'anonymous_collected_data/phase_2/user5_204_20210302-142915-8332', 
-    'anonymous_collected_data/phase_2/user5_204_20210302-145812-8332',  
-    'anonymous_collected_data/phase_2/user3_204_20210311-101017-9152',
-    'anonymous_collected_data/phase_2/user3_204_20210311-121106-2142' ]
-    results_file = 'results_phase_2.csv'
+    experiment_folders = [item for item in glob.glob('anonymized_collected_data/phase_3/*/')]
+    results_file = 'anonymized_collected_data/phase_3/phase_3_transcriptions_anon.csv'
+    get_all_joined_json(experiment_folders, '_phase_3',all_trials, results_file)
+
+def get_all_joined_json_phase_2(discard_df):
+    all_trials = {}
+    for user in list_of_users:
+        all_trials[user] = [x for x in range(1,51) if x not in discard_df[discard_df['user']==user]['trial'].values]
+
+
+    experiment_folders = [item for item in glob.glob('anonymized_collected_data/phase_2/*/')]
+    results_file = 'anonymized_collected_data/phase_2/phase_2_transcriptions_anon.csv'
     get_all_joined_json(experiment_folders, '_phase_2',all_trials, results_file)
 
-def get_all_joined_json_phase_1():
+def get_all_joined_json_phase_1(discard_df):
     all_trials = {}
-    all_trials['user1'] = [x for x in range(2,61) if x not in {6,7,8,41}]
-    all_trials['user2'] = [x for x in range(2,61) if x not in {15,27,32}]
-    all_trials['user3'] = [x for x in range(2,61) if x not in {14,44}]
-    all_trials['user4'] = [x for x in range(2,61) if x not in {7}]
-    all_trials['user5'] = [x for x in range(2,61) if x not in {}]
+    for user in list_of_users:
+        all_trials[user] = [x for x in range(1,61) if x not in discard_df[discard_df['user']==user]['trial'].values]
 
-
-    experiment_folders = [ 'anonymous_collected_data/phase_1/user3_203_20201210-101303-6691',
-    'anonymous_collected_data/phase_1/user3_203_20201217-083511-9152', 
-    'anonymous_collected_data/phase_1/user5_203_20201113', 
-    'anonymous_collected_data/phase_1/user2_203_20201201-092234-9617', 
-    'anonymous_collected_data/phase_1/user1_203_20201216-141859-3506', 
-    'anonymous_collected_data/phase_1/user1_203_20201216-142259-5921', 
-    'anonymous_collected_data/phase_1/user1_203_20201218-142722-8332',
-     'anonymous_collected_data/phase_1/user1_203_20201223-140239-9152', 
-     'anonymous_collected_data/phase_1/user4_203_20201222-150420-9152', 
-     'anonymous_collected_data/phase_1/user4_203_20210104-130049-9152']
-    results_file = 'results_phase_1.csv'
+    experiment_folders = [item for item in glob.glob('anonymized_collected_data/phase_1/*/')]
+    print(experiment_folders)
+    results_file = 'anonymized_collected_data/phase_1/phase_1_transcriptions_anon.csv'
     # convert_pickle_to_json(experiment_folders)
     get_all_joined_json(experiment_folders, '_phase_1',all_trials, results_file, use_trim=False)
 
@@ -302,5 +296,7 @@ if __name__ == '__main__':
     # print(get_timestamp_for_case(json_filename,json_trim_filename,string_real, use_trim=False))
     # {"timestamps": [["the", 4.97, 5.08], ["endotracheal", 5.08, 5.56], ["tube", 5.56, 5.7], ["is", 5.7, 5.8], ["adequately", 5.8, 6.19], ["positioned", 6.19, 6.55], [".", 6.55, 6.8], ["tip", 6.8, 6.8], ["of", 6.8, 6.88], ["the", 6.88, 7.03], ["ng", 7.03, 7.26], ["tube", 7.26, 7.56], ["is", 7.56, 8.01], ["in", 12.28, 12.44], ["the", 12.44, 12.53], ["stomach", 12.53, 12.97], [".", 12.97, 13.42], ["there", 17.09, 17.26], ["are", 17.26, 17.33], ["hazy", 17.33, 17.62], ["opacities", 17.62, 18.11], ["in", 18.11, 18.28], ["the", 18.28, 18.7], ["right", 20.16, 20.47], ["lung", 20.47, 21.02], ["and", 21.29, 21.48], ["to", 21.48, 21.59], ["a", 21.59, 21.65], ["lesser", 21.65, 21.89], ["extent", 21.89, 22.25], ["in", 22.25, 22.31], ["the", 22.31, 22.39], ["left", 22.39, 22.7], ["lung", 22.7, 23.06], [".", 26.76, 27.26], ["no", 29.93, 30.09], ["definite", 30.09, 30.43], ["effusions", 30.43, 30.78], ["or", 30.78, 30.86], ["pneumothorax", 30.86, 31.41], ["although", 31.41, 31.69], ["the", 31.69, 32.07], ["right", 32.55, 32.76], ["costophrenic", 32.76, 33.22], ["angle", 33.22, 33.49], ["is", 33.49, 33.68], ["not", 33.68, 33.81], ["included", 33.81, 34.24], ["on", 34.24, 34.36], ["the", 34.36, 34.43], ["film", 34.43, 34.66], [".", 34.66, 35.01]]}
     # 1/0
-    # get_all_joined_json_phase_1()
-    get_all_joined_json_phase_2()
+    discard_df = pd.read_csv('discard_cases.csv')
+    get_all_joined_json_phase_1(discard_df[discard_df['phase']==1])
+    get_all_joined_json_phase_2(discard_df[discard_df['phase']==2])
+    get_all_joined_json_phase_3(discard_df[discard_df['phase']==3])

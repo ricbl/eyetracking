@@ -836,6 +836,7 @@ classdef TextBox < InteractiveTemplate
                 s.close_texture(s.blocks_textures{i});
             end
             resplit_string = join(strtrim(split(s.text,[";"])),"@$");
+            resplit_string = join(strtrim(split(s.text,["|"])),"@$");
             resplit_string = join(strtrim(split(resplit_string{1},[newline])),"@!"); % was "@£"
             s.structured_output.add_message(class(s),'text', resplit_string{1});
             interaction_map = containers.Map({'exit'}, {ChangeScreen.No});
