@@ -7,14 +7,19 @@ import math
 from skimage import draw
 import os
 import numpy as np
-from PIL import Image,ImageDraw
+from PIL import Image,ImageDraw, ImageFont
 from pydub import AudioSegment
 from pydicom import dcmread
+import pyttsx3
+from pydub import AudioSegment
+import librosa
+import pyrubberband
+import soundfile as sf
 
 fps = 30.
-scale_video = 1
+scale_video = 0.25
 
-def scroll(get_frame, t,table_et):
+def scroll(get_frame, t,table_et, table_transcription):
     frame = get_frame(t)
     frame = frame.copy()
     frame.setflags(write=1)
@@ -22,14 +27,30 @@ def scroll(get_frame, t,table_et):
     fixations = table_et
     fixations = fixations[t<=(fixations['timestamp_end_fixation'])]
     fixations = fixations[t>=(fixations['timestamp_start_fixation'])]
+    
+    table_transcription = table_transcription[t>=(table_transcription['timestamp_start_word'])]
+    table_transcription = table_transcription[t-5<=(table_transcription['timestamp_end_word'])]
+    
     if len(fixations)>0:
         frame = draw_circle(frame,fixations['average_x_position'].values[0]*scale_video, fixations['average_y_position'].values[0]*scale_video, fixations['angular_resolution_x_pixels_per_degree'].values[0]*scale_video,fixations['angular_resolution_y_pixels_per_degree'].values[0]*scale_video, (255,0,0))
-    
+    frame = draw_text(frame, ' '.join(table_transcription['word'].values))
     return frame
+
+def draw_text(image, text_message):
+    foreground = Image.new('RGB', (image.shape[1], image.shape[0]), (128,128,0,128))
+    background = Image.fromarray(image[:,:,:])
+    mask = Image.new('L', (image.shape[1], image.shape[0]), 255)
+    draw = ImageDraw.Draw(mask)
+    fnt = ImageFont.truetype("Pillow/Tests/fonts/FreeMono.ttf", round(120*scale_video))
+    w, h = draw.textsize(text_message, font = fnt)
+    W, H = mask.size
+    draw.text(((W-w)-round(30*scale_video),(H)-round(150*scale_video)), text_message, fill=(200), font = fnt)
+    result = Image.composite(background, foreground, mask)
+    return np.array(result)
 
 def draw_circle(image, x,y,radius_x,radius_y,color):
     foreground = Image.new('RGB', (image.shape[1], image.shape[0]), color)
-    background = Image.fromarray(image[:,:,0])
+    background = Image.fromarray(image[:,:,:])
     mask = Image.new('L', (image.shape[1], image.shape[0]), 255)
     draw = ImageDraw.Draw(mask)
     draw.ellipse((x-radius_x,y-radius_y, x+radius_x, y+radius_y), fill=(200))
@@ -98,27 +119,66 @@ def open_dicom(filpath_image_this_trial):
                     windowing_level = 1 - windowing_level
         return apply_windowing(x, windowing_level, windowing_width)
 
+class SaveTTSFile:
+    def __init__(self, filename):
+        self.engine = pyttsx3.init()
+        self.filename = filename
+
+    def start(self,text, start,end):
+        self.engine.setProperty('rate', 60/(end-start))
+        self.engine.save_to_file(text , self.filename)
+        self.engine.runAndWait()
+
+def stretch_audio(audio, filepath, stretch_constant):
+    audio.export(filepath, format="wav")
+    y, sr = librosa.load(filepath, sr=None)
+    y_stretched = pyrubberband.time_stretch(y, sr, stretch_constant)
+    sf.write(filepath, y_stretched, sr, format='wav')
+    return AudioSegment.from_file(filepath, format="wav")
+
 def main():
     et_dataset_location = 'built_dataset'
     mimic_dataset_location = 'datasets/mimic/'
-    id = 'U5E301T500'
-    audio_file = f'./{int(id[-3:])}.wav'
-    audio_background = mpe.AudioFileClip(audio_file)
+    id = 'P102R068770'
     table_et_pt1 = pd.read_csv(f'{et_dataset_location}/{id}/fixations.csv')
-    main_table = pd.read_csv(f'{et_dataset_location}/metadata_phase_3.csv')
+    table_text = pd.read_csv(f'{et_dataset_location}/{id}/timestamps_transcription.csv')
+    main_table = pd.read_csv(f'{et_dataset_location}/metadata_phase_1.csv')
     image_filepath = main_table[main_table['id']==id]['image'].values
     assert(len(image_filepath)==1)
-    
+    max_time_fixation = max(table_et_pt1['timestamp_end_fixation'].values)
+    max_time_text = max(table_text['timestamp_end_word'].values)
     dicom_array = open_dicom(f'{mimic_dataset_location}/{image_filepath[0]}')*255
     from skimage.transform import resize
     dicom_array = resize(dicom_array, (int(dicom_array.shape[0] *scale_video), int(dicom_array.shape[1] *scale_video)),
                        anti_aliasing=True)
     dicom_array = dicom_array.astype(np.uint8)
-    my_clip = ImageClip(np.stack((dicom_array,)*3, axis=-1) ).set_duration(audio_background.duration).set_fps(fps)
+    my_clip = ImageClip(np.stack((dicom_array,)*3, axis=-1) ).set_duration(max([max_time_fixation,max_time_text])).set_fps(fps)
     
     print(my_clip)
-    my_clip = fl(my_clip, lambda get_frame, t: scroll(get_frame, t,table_et_pt1))
+    my_clip = fl(my_clip, lambda get_frame, t: scroll(get_frame, t,table_et_pt1, table_text))
     
+    
+    full_audio = AudioSegment.empty()
+    previous_end = 0
+    for _,row in table_text.iterrows():
+        if row['timestamp_start_word'] == row['timestamp_end_word']:
+            continue
+        print(row['word'])
+        tts = SaveTTSFile('create_video_temp.mp3')
+        tts.start(row['word'].replace('.', 'period').replace(',','comma').replace('/', 'slash') , row['timestamp_start_word'], row['timestamp_end_word'])
+        del(tts)
+        if row['timestamp_start_word']>previous_end:
+            full_audio += AudioSegment.silent(duration=(row['timestamp_start_word']-previous_end)*1000)
+        print(full_audio.duration_seconds)
+        print(row['timestamp_start_word'])
+        assert(abs(full_audio.duration_seconds - row['timestamp_start_word'])<0.002)
+        word_audio = AudioSegment.from_file('create_video_temp.mp3', format="mp3")
+        word_audio = stretch_audio(word_audio, 'create_video_temp.mp3', word_audio.duration_seconds/(row['timestamp_end_word'] - row['timestamp_start_word']))
+        full_audio += word_audio
+        assert(abs(full_audio.duration_seconds - row['timestamp_end_word'])<0.002)
+        previous_end = row['timestamp_end_word']
+    full_audio.export("create_video_temp.mp3", format="mp3")
+    audio_background = mpe.AudioFileClip('create_video_temp.mp3')
     my_clip = my_clip.set_audio(audio_background)
     my_clip.write_videofile(f"movie_{id}.mp4",audio_codec='aac', codec="libx264",temp_audiofile='temp-audio.m4a', 
                      remove_temp=True,fps=30, bitrate = "5000k")

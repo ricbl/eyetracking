@@ -7,6 +7,8 @@ from collections import defaultdict
 import os
 from copy import deepcopy
 import re
+import random
+import time
 
 list_of_users = sorted(['user1','user2','user3','user4','user5'])
 
@@ -33,8 +35,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                 print(experiment_folder)
                 print(user)
                 #assert it is not in the discard table
-                id = f"U{user.split('r')[-1]}E{experiment}T{trial:03}"
-                print(id)
+
                 discarded_case = discard_table[(discard_table['trial']==trial) & (discard_table['user']==user)]
                 assert(phase!=3 or len(discarded_case)==0)
                 discarded = len(discarded_case)>0
@@ -46,7 +47,17 @@ def get_main_table(experiment_folders, phase, all_trials):
                 assert(len(timestamp_start_audio)==1)
                 timestamp_start_audio = timestamp_start_audio[0]
                 
-                
+                count = 0
+                while count<10000:
+                    r = random.randint(0,999999)
+                    if phase < 3:
+                        id = f"P{phase}{trial:02}R{r:06}"
+                    else:
+                        id = f"P{phase}00R{r:06}"
+                    if not os.path.isdir(f'built_dataset/{id}'):
+                        break
+                    count += 1
+                    assert(count<9999)
                 Path(f'built_dataset/{id}').mkdir(parents=True, exist_ok=True)
                 total_folders[user] +=1
                 
@@ -199,7 +210,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                 assert(len(check_image_y)==1)
                 check_image_y = int(float(check_image_y[0]))
                 assert(check_image_y==image_y)
-                row_= {'id':id,'user':user,'split':split[0],'eye_tracking_data_discarded':discarded,'image':image_filepath[0],'subject_id':image_filepath[0].split('/')[-3][1:],'image_size_x':image_x, 'image_size_y':image_y}
+                row_= {'id':id,'split':split[0],'eye_tracking_data_discarded':discarded,'image':image_filepath[0],'subject_id':image_filepath[0].split('/')[-3][1:],'image_size_x':image_x, 'image_size_y':image_y}
                 row_.update(row)
                 main_table.append(row_)
                 
@@ -241,7 +252,17 @@ def get_main_table(experiment_folders, phase, all_trials):
         print(total_folders[user])
         print(all_trials[user])
         assert(total_folders[user]==len(all_trials[user]))
-    pd.DataFrame(main_table).to_csv(f'built_dataset/metadata_phase_{phase}.csv',index=False, columns = ['id','user','split','eye_tracking_data_discarded','image','subject_id','image_size_x', 'image_size_y'] + labels_list)
+    main_table = pd.DataFrame(main_table)
+    if phase < 3:
+        main_table = main_table.sort_values(by=['id'])
+    else:
+        main_table = main_table.sort_values(by=['image'])
+    main_table.to_csv(f'built_dataset/metadata_phase_{phase}.csv',index=False, columns = ['id','split','eye_tracking_data_discarded','image','subject_id','image_size_x', 'image_size_y'] + labels_list)
+    access_time = time.time()
+    pathlist = list(Path('./built_dataset/').glob('**/*')) + list(Path('./built_dataset/').glob('**'))
+    print(len(pathlist))
+    for path_to_file in pathlist:
+        os.utime(path_to_file, (access_time, access_time))
 
 def generate_df_phase_3(discard_df):
     all_trials = {}
@@ -255,7 +276,6 @@ def generate_df_phase_2(discard_df):
     all_trials = {}
     phase = 2
     for user in list_of_users:
-        # all_trials[user] = [x for x in range(1,51) if x not in discard_df[discard_df['user']==user]['trial'].values]
         all_trials[user] = [x for x in range(1,51)]
         
     experiment_folders = [item for item in glob.glob(f'anonymized_collected_data/phase_{phase}/*/')]
@@ -264,7 +284,6 @@ def generate_df_phase_2(discard_df):
 def generate_df_phase_1(discard_df):
     all_trials = {}
     for user in list_of_users:
-        # all_trials[user] = [x for x in range(1,61) if x not in discard_df[discard_df['user']==user]['trial'].values]
         all_trials[user] = [x for x in range(2,61)]
         
     experiment_folders = [item for item in glob.glob('anonymized_collected_data/phase_1/*/')]
@@ -272,6 +291,6 @@ def generate_df_phase_1(discard_df):
     get_main_table(experiment_folders, 1,all_trials)
 
 discard_df = pd.read_csv('discard_cases.csv')
-# generate_df_phase_1(discard_df[discard_df['phase']==1])
-# generate_df_phase_2(discard_df[discard_df['phase']==2])
+generate_df_phase_1(discard_df[discard_df['phase']==1])
+generate_df_phase_2(discard_df[discard_df['phase']==2])
 generate_df_phase_3(discard_df[discard_df['phase']==3])

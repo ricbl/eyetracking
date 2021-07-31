@@ -4,6 +4,7 @@ from collections import defaultdict
 import re
 import numpy as np
 import glob
+import math
 
 def time_edf_to_time_linux_scale(time_edf):
     return float(time_edf)/1000/60/60/24
@@ -85,7 +86,12 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
     image_fixations_by_screen = defaultdict(list)
     state_edf = 'not_started'
     filepath = ''
-    current_pupil_normalization  = pupil_normalization
+    if pupil_normalization is None:
+        current_pupil_normalization = []
+        current_pupil_normalization_times = []
+    else:
+        current_pupil_normalization  = pupil_normalization
+        current_pupil_normalization_times = 1
     dfs = defaultdict(lambda: pd.DataFrame(columns=columns_csv))
     with open(fname, 'r', encoding="utf8", errors='ignore') as ascfile:
         for current_line in ascfile:
@@ -137,6 +143,9 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                         current_delta_time = time_linux - time_edf
                         if writer_name=='MainWindow' and (message_title == 'index_start_screen_trial' or message_title=='index_start_screen_initialize'):
                             current_screen = int(message_value)
+                            if current_screen==screen_pupil_calibration:
+                                current_pupil_normalization = []
+                                current_pupil_normalization_times = []
                             current_sorce_rect = [0,0,0,0]
                             current_dest_rect = [0,0,0,0]
                             current_window_width = 1
@@ -236,6 +245,10 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                             'screen':current_screen}
                             dfs[current_screen] = dfs[current_screen].append(new_row, ignore_index=True)
                             
+                            print(current_sorce_rect)
+                            print(trial)
+                            print(current_screen)
+                            assert(current_screen==screen_pupil_calibration or sum(current_sorce_rect)>0 or (correct_trial_0 and trial in [1, 7, 9]))
                             source_rect_while_starting_fixation = current_sorce_rect
                             
                             time_start_capture = time_edf+current_delta_time
@@ -299,9 +312,13 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                             dfs[current_screen] = dfs[current_screen].append(new_row, ignore_index=True)
                             
                             if skip_after_pupil:
-                                return current_pupil_normalization, dfs
+                                print(current_pupil_normalization)
+                                pupil_normalization = np.sum(np.array(current_pupil_normalization)*np.array(current_pupil_normalization_times)/np.sum(current_pupil_normalization_times))
+                                assert(pupil_normalization>0)
+                                return pupil_normalization, dfs
                         elif current_screen in screen_dictation:
                             if split_line[0] == 'SFIX':
+                                assert(current_screen==screen_pupil_calibration or sum(current_sorce_rect)>0 or (correct_trial_0 and trial in [1, 7, 9]))
                                 source_rect_while_starting_fixation = current_sorce_rect
                             if split_line[0] == 'EFIX':
                                 if not ((sum(source_rect_while_starting_fixation)==0 or sum(current_dest_rect)==0) and correct_trial_0):
@@ -317,6 +334,7 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                                     position_x, position_y = convert_screen_to_image_coordinates(position_x_screen, position_y_screen, current_dest_rect, source_rect_while_starting_fixation)
                                     image_pixels_per_screen_pixel_x = (source_rect_while_starting_fixation[2]-source_rect_while_starting_fixation[0])/(current_dest_rect[2]-current_dest_rect[0])
                                     image_pixels_per_screen_pixel_y = (source_rect_while_starting_fixation[3]-source_rect_while_starting_fixation[1])/(current_dest_rect[3]-current_dest_rect[1])
+                                    assert(type(current_pupil_normalization)==type(np.mean([0.0])))
                                     
                                     new_row = {'user':user,'type':'fixation',
                                     'value':None,
@@ -357,7 +375,18 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                                 longest_blink = max(longest_blink, (time_end - time_start))
                         elif current_screen==screen_pupil_calibration:
                             if split_line[0] == 'EFIX':
-                                current_pupil_normalization = float(split_line[7])
+                                position_x_screen = float(split_line[5])
+                                position_y_screen = float(split_line[6])
+                                angular_resolution_x_screen = float(split_line[8])
+                                angular_resolution_y_screen = float(split_line[9])
+                                time_start = time_edf_to_time_linux_scale(split_line[2])+current_delta_time
+                                time_end = time_edf_to_time_linux_scale(split_line[3])+current_delta_time
+                                print(angular_resolution_x_screen)
+                                print(angular_resolution_y_screen)
+                                print(math.sqrt(((position_x_screen-1920)/angular_resolution_x_screen)**2+((position_y_screen-1080)/angular_resolution_y_screen)**2))
+                                if math.sqrt(((position_x_screen-1920)/angular_resolution_x_screen)**2+((position_y_screen-1080)/angular_resolution_y_screen)**2)<=2:
+                                    current_pupil_normalization_times.append(time_end-time_start)
+                                    current_pupil_normalization.append(float(split_line[7]))
     
     for screen in screen_fixations_by_screen.keys():
         screen_fixations = screen_fixations_by_screen[screen]
@@ -535,7 +564,11 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
             'trial':trial,
             'screen':screen}
             dfs[-1] = dfs[-1].append(new_row, ignore_index=True)
-    return current_pupil_normalization, dfs
+    print(current_pupil_normalization)
+    print(current_pupil_normalization_times)
+    pupil_normalization = np.sum(np.array(current_pupil_normalization)*np.array(current_pupil_normalization_times)/np.sum(current_pupil_normalization_times))
+    assert(pupil_normalization>0)
+    return pupil_normalization, dfs
 
 def create_csv_gaze_phase_2():
     root_folders = 'anonymized_collected_data/phase_2/'
@@ -670,6 +703,8 @@ def create_csv_gaze_phase_1():
         for trial_csv_key in trial_csv.keys():
             dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
         for trial in range(1,61):
+            if user=='user5' and trial in [1, 7, 9]:
+                pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+f'/et{trial-1}.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, skip_after_pupil = True )
             results_df_this_user_this_trial = results_df_this_user[results_df_this_user['trial']!='all']
             results_df_this_user_this_trial = results_df_this_user_this_trial[results_df_this_user_this_trial['trial'].values.astype(float)==trial]
             
@@ -699,6 +734,6 @@ def create_csv_gaze_phase_1():
     df.to_csv('./summary_edf_phase_1.csv')
 
 if __name__ == '__main__':
-    # create_csv_gaze_phase_1()
-    # create_csv_gaze_phase_2()
-    create_csv_gaze_phase_3()
+    create_csv_gaze_phase_1()
+    create_csv_gaze_phase_2()
+    # create_csv_gaze_phase_3()

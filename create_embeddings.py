@@ -13,11 +13,13 @@ import torchxrayvision as xrv
 import torch
 import sklearn, sklearn.metrics
 import torchvision
-import skimage
+import skimage.transform
 import math
+import os
 
 length_embedding = 128
-list_of_users = sorted(['user1','user2','user3','user4','user5'])
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 class XRayResizerAR(object):
     def __init__(self, size, fn):
@@ -29,16 +31,6 @@ class XRayResizerAR(object):
         ratio = float(self.size)/self.fn(old_size)
         new_size = tuple([round(x*ratio) for x in old_size])
         return skimage.transform.resize(img, (1, new_size[0], new_size[1]), mode='constant', preserve_range=True).astype(np.float32)
-
-class XRayResizerPad(object):
-    def __init__(self, size, fn):
-        self.resizer = XRayResizerAR(size, fn)
-    
-    def __call__(self, img):
-        img = self.resizer(img)
-        pad_width = (-np.array(img.shape[1:])+max(np.array(img.shape[1:])))/2
-        #print(pad_width)
-        return np.pad(img, ((0,0),(math.ceil(pad_width[0]),math.floor(pad_width[0])),(math.ceil(pad_width[1]),math.floor(pad_width[1]))))
 
 def get_32_size(shape):
     projected_max_size = 224/min(np.array(shape))*max(np.array(shape))
@@ -61,19 +53,10 @@ def get_img_size(dicom_id, d_mimic_chex_original, preprocess=''):
     assert(d_mimic_chex_original.csv.iloc[iloc_index]['dicom_id']==dicom_id)
     return d_mimic_chex_original[iloc_index]["img"].shape[1:]
 
+transforms = torchvision.transforms.Compose([XRayResizerPadRound32(224, min)])
 
 def get_model_embeddings(dicom_id, preprocess=''):
-    # if preprocess=='center':
-        # transforms = torchvision.transforms.Compose([xrv.datasets.XRayCenterCrop(),xrv.datasets.XRayResizer(224)])
-    # elif preprocess=='pad_max':
-        # transforms = torchvision.transforms.Compose([XRayResizerPad(224, max)])
-    # elif preprocess=='pad_min':
-        # transforms = torchvision.transforms.Compose([XRayResizerPad(224, min)])
-    # elif preprocess=='ar_max':
-        # transforms = torchvision.transforms.Compose([XRayResizerAR(224, max)])
-    # elif preprocess=='ar_min':
-        # transforms = torchvision.transforms.Compose([XRayResizerAR(224, min)])
-    transforms = torchvision.transforms.Compose([XRayResizerPadRound32(224, min)])
+
     d_mimic_chex = xrv.datasets.MIMIC_Dataset(#datadir="/lustre03/project/6008064/jpcohen/MIMICCXR-2.0/files",
           imgpath="/usr/sci/scratch/ricbl/mimic-cxr/mimic-cxr-jpg/mimic-cxr-jpg-2.0.0.physionet.org/files",
           csvpath="/usr/sci/scratch/ricbl/mimic-cxr/mimic-cxr-2.0.0-chexpert.csv",
@@ -118,13 +101,6 @@ def get_model_embeddings(dicom_id, preprocess=''):
     out = model.features(torch.from_numpy(sample["img"]).cuda().unsqueeze(0)).cpu()
     #print(out.size())
     return out.squeeze(0).detach().numpy(),d_mimic_chex_original[iloc_index]["img"].shape[1:]
-    # print(sample['lab'])
-    # print(out.size())
-    # # print(dir(model))
-    # # print(model.classifier)
-    # # print(list(model.modules()))
-    # # print(list(model.named_buffers()))
-    # 1/0
 
 def get_gaussian(y,x,sy,sx, sizey,sizex, shown_rects_image_space):
     mu = [y-shown_rects_image_space[1],x-shown_rects_image_space[0]]
@@ -137,88 +113,42 @@ def get_gaussian(y,x,sy,sx, sizey,sizex, shown_rects_image_space):
     pos[:, :, 0] = Y
     to_return = np.zeros([sizey,sizex])
     to_return[shown_rects_image_space[1]:shown_rects_image_space[3], shown_rects_image_space[0]:shown_rects_image_space[2]] = multivariate_normal(mu, sig).pdf(pos)
-    #print(np.sum(to_return))
     return to_return
 
-#save colored difference map over original image
-def plot_diff_overlay(x, diff):
-    s1, s2 = x.shape
-    plt.style.use('./plotstule.mplstyle')
-    plt.close('all')
-    fig = plt.figure(figsize=(s2/100, s1/100), dpi=100)
-    fig.tight_layout(pad=0)
-    fig.add_subplot(111)
-    plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, 
-        hspace = 0, wspace = 0)
-    plt.margins(0,0)
-    plt.gca().xaxis.set_major_locator(plt.NullLocator())
-    plt.gca().yaxis.set_major_locator(plt.NullLocator())
-    fig.canvas.draw()
-    plt.gca().invert_yaxis()
-    plt.axis('off')
-    
-    plt.imshow(x, cmap='gray')
-    
-    # alphas = (diff>0)*0.2
-    alphas = (diff>-1)*0.2
-    
-    
-    #sets the color to be green and pink for negative and positive values, respectively
-    cmap = plt.get_cmap('Blues')
-    rgba_img = cmap(diff*0.7+(1-0.7))
-    
-    rgba_img[:,:,3] = alphas
-    plt.imshow(rgba_img)
-
-def save_plt(filepath):
-    plt.savefig(filepath, bbox_inches = 'tight', pad_inches = 0)
-
-def create_heatmap(sequence_table, size_x, size_y):
-    img = np.zeros((size_y, size_x), dtype=np.float32)
-    for index, row in sequence_table.iterrows():
-        # angle_circle = 2.5
-        angle_circle = 0.98 #1.9 #0.98
-        shown_rects_image_space = [round(row['source_rect_dimension_1']) ,round(row['source_rect_dimension_2']),round(row['source_rect_dimension_3']),round(row['source_rect_dimension_4'])]
-        # shown_rects_image_space = [row['source_rect_dimension_1']) ,row['source_rect_dimension_2']),row['source_rect_dimension_3'],row['source_rect_dimension_4']]
-        # print(shown_rects_image_space)
-        gaussian = get_gaussian(row['position_y'],row['position_x'], row['angular_resolution_y']*angle_circle, row['angular_resolution_x']*angle_circle, size_y,size_x, shown_rects_image_space)
-        img += gaussian*(row['time_linux']-row['time_start_linux'])
-        # print(np.min(gaussian[gaussian>0]))
-        # rr, cc = ellipse(row['position_y'],row['position_x'], row['angular_resolution_y']*angle_circle, row['angular_resolution_x']*angle_circle)
-        # len_rr_before_invalid = len(rr)
-        # invalid_indexs  = np.logical_or(np.logical_or(rr<shown_rects_image_space[1], cc<shown_rects_image_space[0]), np.logical_or(rr>=shown_rects_image_space[3], cc>=shown_rects_image_space[2]))
-        # rr = rr[~invalid_indexs]
-        # cc = cc[~invalid_indexs]
-        # if len(rr)>0:
-        #     img[rr, cc] += 1/len_rr_before_invalid*(row['time_linux']-row['time_start_linux'])
-    return img/np.max(img)
-
-def create_embedding(sequence_table, dicom_id, start_audio):
+def create_embedding(sequence_table, dicom_id):
     embedding, img_shape = get_model_embeddings(dicom_id)
     size_y, size_x = img_shape
     all_fixations = []
     all_timestamps = []
     all_probabilities = []
     for index, row in sequence_table.iterrows():
-        angle_circle = 0.98
-        shown_rects_image_space = [round(row['source_rect_dimension_1']) ,round(row['source_rect_dimension_2']),round(row['source_rect_dimension_3']),round(row['source_rect_dimension_4'])]
-        gaussian = get_gaussian(row['position_y'],row['position_x'], row['angular_resolution_y']*angle_circle, row['angular_resolution_x']*angle_circle, size_y
-        ,size_x, shown_rects_image_space)
-        gaussian_old_shape = gaussian.shape
-        p_fixation = np.sum(gaussian)
-        gaussian = transforms(gaussian[None,...])
-        gaussian = gaussian*(max(gaussian_old_shape[0],gaussian_old_shape[1])/get_32_size(gaussian_old_shape))**2
-        gaussian = torch.nn.functional.avg_pool2d(torch.tensor(gaussian).unsqueeze(0), 32).numpy()[0,0,...]*32*32
+        angle_circle = 1
+        shown_rects_image_space = [round(row['xmin_shown_from_image']) ,round(row['ymin_shown_from_image']),round(row['xmax_shown_from_image']),round(row['ymax_shown_from_image'])]
         
+        shown_rects_screen_space = [round(row['xmin_in_screen_coordinates']) ,round(row['ymin_in_screen_coordinates']),round(row['xmax_in_screen_coordinates']),round(row['ymax_in_screen_coordinates'])]
+        #buttons_rectangle = np.array([10,1038,650, 1122]) 933, 1017
+        buttons_rectangle = np.array([0,923,660, 1132])
+
+        image_pixels_per_screen_pixel_x = (shown_rects_image_space[2]-shown_rects_image_space[0])/(shown_rects_screen_space[2]-shown_rects_screen_space[0])
+        image_pixels_per_screen_pixel_y = (shown_rects_image_space[3]-shown_rects_image_space[1])/(shown_rects_screen_space[3]-shown_rects_screen_space[1])
+
+        x_screen, y_screen = convert_image_to_screen_coordinates(row['average_x_position'], row['average_y_position'], shown_rects_screen_space, shown_rects_image_space)
+        distance_to_image = distance_point_rectangle([x_screen, y_screen],shown_rects_screen_space)
+        distance_to_buttons = distance_point_rectangle([x_screen, y_screen],buttons_rectangle)
+        distance_to_image_angle = distance_point_rectangle([x_screen, y_screen],shown_rects_screen_space, image_pixels_per_screen_pixel_x/row['angular_resolution_x_pixels_per_degree'], image_pixels_per_screen_pixel_y/row['angular_resolution_y_pixels_per_degree'])
+        if distance_to_image==0 or (distance_to_buttons>50 and distance_to_image_angle<0.5):
         
-        #print('oi1')
-        all_fixations.append(weight_embedding(embedding, gaussian))
-        # all_fixations.append(weight_embedding(torch.tensor(embedding).half().cuda(), gaussian))
-        #print('oi2')
-        all_timestamps.append([(row['time_start_linux']-start_audio)*24*60*60,(row['time_linux']-start_audio)*24*60*60])
-        all_probabilities.append(p_fixation)
-    #print(np.array(all_fixations).shape)
-    #print(np.array(all_timestamps).shape)
+            gaussian = get_gaussian(row['average_y_position'],row['average_x_position'], row['angular_resolution_y_pixels_per_degree']*angle_circle, row['angular_resolution_x_pixels_per_degree']*angle_circle, size_y
+            ,size_x, shown_rects_image_space)
+            gaussian_old_shape = gaussian.shape
+            p_fixation = np.sum(gaussian)
+            gaussian = transforms(gaussian[None,...])
+            gaussian = gaussian*(max(gaussian_old_shape[0],gaussian_old_shape[1])/get_32_size(gaussian_old_shape))**2
+            gaussian = torch.nn.functional.avg_pool2d(torch.tensor(gaussian).unsqueeze(0), 32).numpy()[0,0,...]*32*32
+            
+            all_fixations.append(weight_embedding(embedding, gaussian))
+            all_timestamps.append([row['timestamp_start_fixation'],row['timestamp_end_fixation']])
+            all_probabilities.append(p_fixation)
     return np.array(all_fixations),np.array(all_timestamps), np.array(all_probabilities)
 
 def convert_screen_to_image_coordinates(x, y, dest_rect, source_rect):
@@ -262,230 +192,38 @@ def nearest_distance(rectangle, point,multiplier_x = 1, multiplier_y = 1):
     d_corner = ((d_cx*multiplier_x)**2 + (d_cy*multiplier_x)**2)**0.5
     return min(d_top, d_bottom, d_left, d_right, d_corner)
 
-def create_embedding(sequence_table, dicom_id, start_audio):
-    d_mimic_chex_original = xrv.datasets.MIMIC_Dataset(#datadir="/lustre03/project/6008064/jpcohen/MIMICCXR-2.0/files",
-          imgpath="/usr/sci/scratch/ricbl/mimic-cxr/mimic-cxr-jpg/mimic-cxr-jpg-2.0.0.physionet.org/files",
-          csvpath="/usr/sci/scratch/ricbl/mimic-cxr/mimic-cxr-2.0.0-chexpert.csv",
-          metacsvpath="/usr/sci/scratch/ricbl/mimic-cxr/mimic-cxr-2.0.0-metadata.csv",
-          views=["PA","AP"], unique_patients=False)
-    img_shape = get_img_size(dicom_id, d_mimic_chex_original)
-    size_y, size_x = img_shape
-    all_timestamps = []
-    distance_to_buttons = []
-    distance_to_image_angle = []
-    distance_to_image = []
-    position_x = []
-    position_y = []
-    for index, row in sequence_table.iterrows():
-        shown_rects_image_space = [round(row['source_rect_dimension_1']) ,round(row['source_rect_dimension_2']),round(row['source_rect_dimension_3']),round(row['source_rect_dimension_4'])]
-        shown_rects_screen_space = [round(row['dest_rect_dimension_1']) ,round(row['dest_rect_dimension_2']),round(row['dest_rect_dimension_3']),round(row['dest_rect_dimension_4'])]
-        #buttons_rectangle = np.array([10,1038,650, 1122]) 933, 1017
-        buttons_rectangle = np.array([0,923,660, 1132])
-        all_timestamps.append([(row['time_start_linux']-start_audio)*24*60*60,(row['time_linux']-start_audio)*24*60*60])
-        
-        image_pixels_per_screen_pixel_x = (shown_rects_image_space[2]-shown_rects_image_space[0])/(shown_rects_screen_space[2]-shown_rects_screen_space[0])
-        image_pixels_per_screen_pixel_y = (shown_rects_image_space[3]-shown_rects_image_space[1])/(shown_rects_screen_space[3]-shown_rects_screen_space[1])
-        
-        x_screen, y_screen = convert_image_to_screen_coordinates(row['position_x'], row['position_y'], shown_rects_screen_space, shown_rects_image_space)
-        distance_to_image.append(distance_point_rectangle([x_screen, y_screen],shown_rects_screen_space))
-        distance_to_buttons.append(distance_point_rectangle([x_screen, y_screen],buttons_rectangle))
-        distance_to_image_angle.append(distance_point_rectangle([x_screen, y_screen],shown_rects_screen_space, image_pixels_per_screen_pixel_x/row['angular_resolution_x'], image_pixels_per_screen_pixel_y/row['angular_resolution_y']))
-        position_x.append(x_screen)
-        position_y.append(y_screen)
-        
-        
-    return np.array(all_timestamps),np.array(distance_to_image),np.array(distance_to_buttons),np.array(distance_to_image_angle),np.array(position_x), np.array(position_y)
-    
-# def create_embedding(sequence_table, img, start_audio):
-    # size_y, size_x = img.shape
-    # all_fixations = []
-    # all_timestamps = []
-    # for index, row in sequence_table.iterrows():
-        # angle_circle = 0.98
-        # shown_rects_image_space = [row['source_rect_dimension_1'] ,row['source_rect_dimension_2'],row['source_rect_dimension_3'],row['source_rect_dimension_4']]
-        # rr, cc = ellipse(row['position_y'],row['position_x'], row['angular_resolution_y']*angle_circle, row['angular_resolution_x']*angle_circle)
-        # len_rr_before_invalid = len(rr)
-        # invalid_indexs  = np.logical_or(np.logical_or(rr<shown_rects_image_space[1], cc<shown_rects_image_space[0]), np.logical_or(rr>=shown_rects_image_space[3], cc>=shown_rects_image_space[2]))
-        # rr = rr[~invalid_indexs]
-        # cc = cc[~invalid_indexs]
-        # if len(rr)>0:
-            # # all_fixations.append(img[rr, cc][np.random.randint(len(rr), size=[length_embedding])])
-            # all_fixations.append(img[rr, cc][np.random.randint(len(rr), size=[length_embedding])])
-            # all_timestamps.append([(row['time_start_linux']-start_audio)*24*60*60,(row['time_linux']-start_audio)*24*60*60])
-    # print(np.array(all_fixations).shape)
-    # print(np.array(all_timestamps).shape)
-    # return np.array(all_fixations),np.array(all_timestamps)
-
-from pydicom import dcmread
-def create_heatmaps(filename_edf, filename_images, total_trials, screen_heatmap=2, results_filename=None, folder_name='./heatmaps'):
-    df = pd.read_csv(filename_edf)
-
-    if screen_heatmap==9 and results_filename is not None:
-        chestbox_df = pd.read_csv(results_filename)
-        chestbox_df = chestbox_df[list(map(lambda x: x.startswith('ChestBox (Rectangle) coord'), chestbox_df['title']))]
-    
-    with open(filename_images) as f:
-        df_so = f.readlines()
-        df_so = [x.strip() for x in df_so] 
-    df_this_trial = df[df['screen']==screen_heatmap]
-    for trial in range(1,total_trials+1):
-        print(trial)
-        df_this_trial = df[df['trial']==trial]
-        df_this_trial = df_this_trial[df_this_trial['screen']==screen_heatmap]
-        filpath_image_this_trial = df_so[trial-1]
-        image = open_dicom(filpath_image_this_trial)
-        for user in list_of_users:
-            print(user)
-            df_this_users = df_this_trial[df_this_trial['user']==user]
-            if len(df_this_users)>0:
-                image_size_x = int(float(df_this_users[df_this_users['type']=='image_size_x']['value'].values[0]))
-                image_size_y = int(float(df_this_users[df_this_users['type']=='image_size_y']['value'].values[0]))
-                this_img = create_heatmap(df_this_users[df_this_users['type']=='fixation'],image_size_x, image_size_y)
-                
-                # plot_diff_overlay(image, this_img)
-                # 
-                # if screen_heatmap==9 and results_filename is not None:
-                #     chestbox_df_this_trial = chestbox_df[chestbox_df['trial']==str(trial)]
-                #     chestbox_df_this_trial = chestbox_df_this_trial[chestbox_df_this_trial['user']==user]
-                #     if len(chestbox_df_this_trial)>0:
-                #         assert(len(chestbox_df_this_trial)==4)
-                #         x1 = float(chestbox_df_this_trial[chestbox_df_this_trial['title']=='ChestBox (Rectangle) coord 0']['value'].values[0])
-                #         y1 = float(chestbox_df_this_trial[chestbox_df_this_trial['title']=='ChestBox (Rectangle) coord 1']['value'].values[0])
-                #         x2 = float(chestbox_df_this_trial[chestbox_df_this_trial['title']=='ChestBox (Rectangle) coord 2']['value'].values[0])
-                #         y2 = float(chestbox_df_this_trial[chestbox_df_this_trial['title']=='ChestBox (Rectangle) coord 3']['value'].values[0])
-                #         rect = patches.Rectangle((x1, y1), x2-x1, y2-y1, linewidth=1, edgecolor='r', facecolor='none')
-                #         ax = plt.gca()
-                #         ax.add_patch(rect)
-                #         plt.show()
-                # save_plt(folder_name+'/'+str(trial)  + '_'  + user + '_' + "heatmap.png")
-            im = Image.fromarray(this_img*255).convert('RGB')
-            im.save(folder_name+'/'+str(trial)  + '_'  + user + '_' + "heatmap.png")
-
-def find_nearest(a, n):
-    return np.minimun(np.abs(a.astype(float)-n.astype(float)))[0]
-
-def apply_windowing(x,level,width):
-    return np.minimum(np.maximum(((x.astype(float)-level)/width+0.5),0),1);
-
-def open_dicom(filpath_image_this_trial):
-    with dcmread('datasets/mimic/'+filpath_image_this_trial) as header:
-        max_possible_value = (2**float(header.BitsStored)-1)
-        x = header.pixel_array
-        x = x.astype(float)/max_possible_value
-        if 'WindowWidth' in header:
-            if hasattr(header.WindowWidth, '__getitem__'):
-                wwidth = header.WindowWidth[0]
-            else:
-                wwidth = header.WindowWidth
-            if hasattr(header.WindowCenter, '__getitem__'):
-                wcenter = header.WindowCenter[0]
-            else:
-                wcenter = header.WindowCenter
-            windowing_width = wwidth/max_possible_value
-            windowing_level = wcenter/max_possible_value
-            if header.PhotometricInterpretation=='MONOCHROME1' or not ('PixelIntensityRelationshipSign' in header) or header.PixelIntensityRelationshipSign==1:
-                x = 1-x
-                windowing_level = 1 - windowing_level
-        else:
-             if 'VOILUTSequence' in header:
-                lut_center = float(header.VOILUTSequence.Item_1.LUTDescriptor)/2
-                window_center = find_nearest(header.VOILUTSequence.Item_1.LUTData, lut_center)
-                deltas = []
-                for i in range(10,31):
-                    deltas.append((float(header.VOILUTSequence.Item_1.LUTData[window_center+i]) - float(header.VOILUTSequence.Item_1.LUTData[window_center-i]))/2/i)
-                window_width = lut_center/sum(deltas)*2*len(deltas)
-                windowing_width = window_width/max_possible_value
-                windowing_level = (window_center-1)/max_possible_value
-                if windowing_width < 0:
-                    windowing_width = -windowing_width
-                    x = 1-x
-                    windowing_level = 1 - windowing_level
-             else:
-                windowing_width = 1
-                windowing_level = 0.5;
-                if header.PhotometricInterpretation=='MONOCHROME1' or not ('PixelIntensityRelationshipSign' in header) or header.PixelIntensityRelationshipSign==1:
-                    x = 1-x
-                    windowing_level = 1 - windowing_level
-        return apply_windowing(x, windowing_level, windowing_width)
-
-def create_embeddings(filename_edf, filename_images, emb_filename, all_trials):
+def create_embeddings(path_dataset,filename_edf, emb_filename):
     h5_index = 0
     with h5py.File(emb_filename, "w") as h5_f:
-        df = pd.read_csv(filename_edf)
-        with open(filename_images) as f:
-            df_so = f.readlines()
-            df_so = [x.strip() for x in df_so] 
-        df = df[df['screen']==2]
-        for user in list_of_users:
-            print(user)
-            df_this_user = df[df['user']==user]
-            for trial in all_trials[user]:
+        df = pd.read_csv(f'{path_dataset}/{filename_edf}')
+        df = df[df['eye_tracking_data_discarded']==False]
+        all_images = df['image'].unique()
+        for trial, image_name in enumerate(sorted(all_images)):
+            df_this_trial = df[df['image']==image_name]
+            for _, row in df_this_trial.iterrows():
+                id = row['id']
+                fixations_df = pd.read_csv(f'{path_dataset}/{id}/fixations.csv')
                 print(trial)
-                df_this_trial_this_user = df_this_user[df_this_user['trial']==trial]
-                filpath_image_this_trial = df_so[trial-1]
+                filpath_image_this_trial = row['image']
                 dicom_id = filpath_image_this_trial.split('/')[-1].split('.')[0]
-                # image = open_dicom(filpath_image_this_trial)
-                start_audio = float(df_this_trial_this_user[df_this_trial_this_user['type']=='start_audio_recording']['value'].values[0])
-                # fixations, timestamp, probability = create_embedding(df_this_trial_this_user[df_this_trial_this_user['type']=='fixation'],dicom_id, start_audio)
-                # h5_f.create_dataset('embedding_'+f'{h5_index:06}', data=fixations)
-                # h5_f.create_dataset('probability_'+f'{h5_index:06}', data=probability)
-                # h5_f.create_dataset('timestamp_start_'+f'{h5_index:06}', data=timestamp[:,0])
-                # h5_f.create_dataset('timestamp_end_'+f'{h5_index:06}', data=timestamp[:,1])
-                # h5_f.create_dataset('user_'+f'{h5_index:06}', data=np.array([list_of_users.index(user)]))
-                # h5_f.create_dataset('trial_n_'+f'{h5_index:06}', data=np.array([trial]))
-                timestamp, distance_to_image, distance_to_buttons, distance_to_image_angle, position_x, position_y = create_embedding(df_this_trial_this_user[df_this_trial_this_user['type']=='fixation'],dicom_id, start_audio)
-                h5_f.create_dataset('distance_to_image_'+f'{h5_index:06}', data=distance_to_image)
-                h5_f.create_dataset('distance_to_image_angle_'+f'{h5_index:06}', data=distance_to_image_angle)
-                h5_f.create_dataset('distance_to_buttons_'+f'{h5_index:06}', data=distance_to_buttons)
+                fixations, timestamp, probability = create_embedding(fixations_df,dicom_id)
+                h5_f.create_dataset('embedding_'+f'{h5_index:06}', data=fixations)
+                h5_f.create_dataset('probability_'+f'{h5_index:06}', data=probability)
                 h5_f.create_dataset('timestamp_start_'+f'{h5_index:06}', data=timestamp[:,0])
                 h5_f.create_dataset('timestamp_end_'+f'{h5_index:06}', data=timestamp[:,1])
-                h5_f.create_dataset('user_'+f'{h5_index:06}', data=np.array([list_of_users.index(user)]))
                 h5_f.create_dataset('trial_n_'+f'{h5_index:06}', data=np.array([trial]))
-                h5_f.create_dataset('position_x_'+f'{h5_index:06}', data=position_x)
-                h5_f.create_dataset('position_y_'+f'{h5_index:06}', data=position_y)
                 h5_index += 1
 
-    
-def get_embeddings_phase_2(discard_df):
-    all_trials = {}
-    for user in list_of_users:
-        all_trials[user] = [x for x in range(51) if x not in discard_df[discard_df['user']==user]['trial'].values]
-    
-    create_embeddings('./summary_edf_phase_2.csv', 
-    './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',
-    "embeddings_phase_2_distances.hdf5", all_trials)
+def get_embeddings_phase_2():
+    create_embeddings('./dataset/','metadata_phase_2.csv',"embeddings_phase_2_v3.hdf5")
 
-def get_embeddings_phase_1(discard_df):
-    all_trials = {}
-    for user in list_of_users:
-        all_trials[user] = [x for x in range(61) if x not in discard_df[discard_df['user']==user]['trial'].values]
-    
-    create_embeddings('./summary_edf_phase_1.csv',
-     './anonymized_collected_data/image_paths_preexperiment_3.txt',
-     "embeddings_phase_1_distances.hdf5", all_trials)
+def get_embeddings_phase_1():
+    create_embeddings('./dataset/','metadata_phase_1.csv',"embeddings_phase_1_v3.hdf5")
 
 def weight_embedding(embedding, weights):
     sum_weigths = np.sum(weights[None,...])
     this_embedding = np.sum(np.sum(embedding*weights[None,...]/sum_weigths, axis = 2), axis=1)
     return this_embedding
-
-# def weight_embedding(embedding, weights):
-    
-    
-    
-    # sum_weigths = np.sum(weights[None,...])
-    # embedding.mul_(torch.tensor(weights[None,...]/sum_weigths).half().cuda())
-    # this_embedding = embedding.sum(dim = [1,2])
-    # # this_embedding = np.sum(np.sum(embedding*weights[None,...]/sum_weigths, axis = 2), axis=1)
-    # # final_embedding = []
-    # # for i in range(embedding.shape[0]):
-        
-        # # resized_embedding_i = skimage.transform.resize(embedding[i], (1,new_size[0], new_size[1]), mode='constant', preserve_range=True).astype(np.float32)
-        # # final_embedding.append(np.sum(resized_embedding_i*weights[None,...]/sum_weigths))
-        # # print(np.sum(weights[None,...]))
-    # # resized_embedding = np.stack(final_embedding)
-    # #print(this_embedding.size())
-    # return this_embedding.detach().cpu().numpy()
 
 import argparse
     
@@ -494,14 +232,6 @@ if __name__ == '__main__':
     parser.add_argument('--preprocess', type=str, nargs='?',
                         help='')
     args = parser.parse_args()
-
-    # get_model_embeddings('',args.preprocess)
-    # create_heatmaps('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',60, 9, './results_phase_2.csv',folder_name='heatmaps_phase_2_0.98')
-    # create_heatmaps('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',60, folder_name='heatmaps_gaussian_phase_2_0.98')
-    # create_heatmaps('./summary_edf_phase_1.csv', './anonymized_collected_data/phase_1/image_paths_preexperiment_3.txt',60, folder_name='heatmaps_phase_1_0.98')
     
-    discard_df = pd.read_csv('discard_cases.csv')
-    
-    get_embeddings_phase_1(discard_df[discard_df['phase']==1])
-    get_embeddings_phase_2(discard_df[discard_df['phase']==2])
-    # create_embeddings('./summary_edf_phase_2.csv', './anonymized_collected_data/phase_2/image_paths_preexperiment_4.txt',"embeddings_phase_2.hdf5", 50)
+    get_embeddings_phase_1()
+    get_embeddings_phase_2()
