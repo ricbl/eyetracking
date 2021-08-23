@@ -6,6 +6,8 @@ import numpy as np
 import glob
 import math
 
+import csv
+
 def time_edf_to_time_linux_scale(time_edf):
     return float(time_edf)/1000/60/60/24
 
@@ -62,12 +64,17 @@ def nearest_distance(rectangle, point):
     d_corner = (d_cx**2 + d_cy**2)**0.5
     return min(d_top, d_bottom, d_left, d_right, d_corner)
 
-def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], screen_pupil_calibration=14, correct_trial_0 = False, skip_after_pupil = False, chest_box_image=None, image_filepath = '', discard = False):
+def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2], screen_pupil_calibration=14, correct_trial_0 = False, skip_after_pupil = False, chest_box_image=None, image_filepath = '', discard = False, phase = None):
     print(fname)
+    header_samples_written = False
+    total_rows_written = 0
     current_sorce_rect = [0,0,0,0]
     current_dest_rect = [0,0,0,0]
-    current_window_width = 1
-    current_window_level = 0.5
+    current_window_width = None
+    current_window_level = None
+    initialization_window_width = None
+    initialization_window_level = None
+    
     current_zoom = 1
     if fname.split('/')[-1][:2]=='et':
         if fname[-7:-4]=='pt2':
@@ -86,6 +93,15 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
     image_fixations_by_screen = defaultdict(list)
     state_edf = 'not_started'
     filepath = ''
+    
+    current_window_width_starting_time = 0
+    current_window_width_times = []
+    current_window_width_values = []
+    
+    current_window_level_starting_time = 0
+    current_window_level_times = []
+    current_window_level_values = []
+        
     if pupil_normalization is None:
         current_pupil_normalization = []
         current_pupil_normalization_times = []
@@ -140,7 +156,16 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                         time_linux = float(split_message[1])
                         if message_title == 'filepath':
                             filepath += message_value
-                        current_delta_time = time_linux - time_edf
+                        if writer_name=='MainWindow' and (message_title == 'index_start_screen_trial' or message_title=='index_start_screen_initialize'):
+                            current_delta_time = time_linux - time_edf
+                            image_displayed = False
+                        if current_delta_time!=0:# and current_screen in screen_dictation:
+                            if (abs(time_linux - time_edf - current_delta_time)*60*60*24*1000)>=20.:
+                                print('oi2')
+                                print(message_title)
+                                print(split_line[1])
+                                print(abs(time_linux - time_edf - current_delta_time)*60*60*24*1000)
+                            assert(abs(time_linux - time_edf - current_delta_time)*60*60*24*1000<50.)
                         if writer_name=='MainWindow' and (message_title == 'index_start_screen_trial' or message_title=='index_start_screen_initialize'):
                             current_screen = int(message_value)
                             if current_screen==screen_pupil_calibration:
@@ -148,19 +173,23 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                                 current_pupil_normalization_times = []
                             current_sorce_rect = [0,0,0,0]
                             current_dest_rect = [0,0,0,0]
-                            current_window_width = 1
-                            current_window_level = 0.5
+                            current_window_width = initialization_window_width
+                            current_window_level = initialization_window_level
+                            changing_sorce_rect = [None, None, None, None]
+                            changing_dest_rect = [None, None, None, None]
+                            start_with_no_image = False
+                            started_changing_zoom_pan = False
                             #TODO: find somewhere where these are not 1
                             #TODO: check where I get the window and level from the dicom to see if it is correct that most are 1;0.5
                             current_zoom = 1
                             dfs[current_screen] = dfs[current_screen][0:0]
+                        elif writer_name=='ImageLoading':
+                            if message_title == 'window_width':
+                                initialization_window_width = float(message_value)
+                            elif message_title == 'window_center':
+                                initialization_window_level = float(message_value)
                         elif current_screen in screen_dictation:
-                            if writer_name=='ImageLoading':
-                                if message_title == 'window_width':
-                                    current_window_width = float(message_value)
-                                elif message_title == 'window_center':
-                                    current_window_level = float(message_value)
-                            elif writer_name=='InteractiveDictation':
+                            if writer_name=='InteractiveDictation':
                                 if message_title == 'start_audio_recording':
                                     new_row = {'user':user,'type':'start_audio_recording',
                                     'value':time_edf+current_delta_time,
@@ -171,23 +200,54 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                             elif writer_name=='InteractiveImageWithZoom' or writer_name=='InteractiveImage':
                                 if message_title == 'zoom':
                                     current_zoom = float(message_value)
+                                elif message_title == 'width':
+                                    current_window_width_times.append(time_edf+current_delta_time-current_window_width_starting_time)
+                                    current_window_width_values.append(current_window_width)
+                                    current_window_width = float(message_value)
+                                    current_window_width_starting_time = time_edf+current_delta_time
+                                elif message_title == 'level':
+                                    current_window_level_times.append(time_edf+current_delta_time-current_window_level_starting_time)
+                                    current_window_level_values.append(current_window_level)
+                                    current_window_level = float(message_value)
+                                    current_window_level_starting_time = time_edf+current_delta_time
                                 elif message_title == 'source_rect_dimension_1':
-                                    current_sorce_rect[0] = float(message_value)
+                                    started_changing_zoom_pan = True
+                                    changing_sorce_rect[0] = float(message_value)
                                 elif message_title == 'source_rect_dimension_2':
-                                    current_sorce_rect[1] = float(message_value)
+                                    assert(started_changing_zoom_pan)
+                                    changing_sorce_rect[1] = float(message_value)
                                 elif message_title == 'source_rect_dimension_3':
-                                    current_sorce_rect[2] = float(message_value)
+                                    assert(started_changing_zoom_pan)
+                                    changing_sorce_rect[2] = float(message_value)
                                 elif message_title == 'source_rect_dimension_4':
-                                    current_sorce_rect[3] = float(message_value)
+                                    assert(started_changing_zoom_pan)
+                                    changing_sorce_rect[3] = float(message_value)
                                 elif message_title == 'dest_rect_dimension_1':
-                                    current_dest_rect[0] = float(message_value)
+                                    assert(started_changing_zoom_pan)
+                                    changing_dest_rect[0] = float(message_value)
                                 elif message_title == 'dest_rect_dimension_2':
-                                    current_dest_rect[1] = float(message_value)
+                                    assert(started_changing_zoom_pan)
+                                    changing_dest_rect[1] = float(message_value)
                                 elif message_title == 'dest_rect_dimension_3':
-                                    current_dest_rect[2] = float(message_value)
+                                    assert(started_changing_zoom_pan)
+                                    changing_dest_rect[2] = float(message_value)
                                 elif message_title == 'dest_rect_dimension_4':
+                                    assert(started_changing_zoom_pan)
+                                    changing_dest_rect[3] = float(message_value)
+                                    
+                                    assert(started_changing_zoom_pan)
+                                    started_changing_zoom_pan = False
+                                    assert(all([not (dimension is None) for dimension in changing_sorce_rect]))
+                                    assert(all([not (dimension is None) for dimension in changing_dest_rect]))
+                                    current_sorce_rect = changing_sorce_rect
+                                    current_dest_rect = changing_dest_rect
+                                    changing_sorce_rect = [None, None, None, None]
+                                    changing_dest_rect = [None, None, None, None]
+                                    
+                                    image_displayed = True
                                     current_dest_rect[3] = float(message_value)
                                 elif message_title == 'image_size_x':
+                                    
                                     new_row = {'user':user,'type':'image_size_x',
                                     'value':float(message_value),
                                     'time_linux':time_edf+current_delta_time,
@@ -226,6 +286,7 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                 elif current_screen in screen_dictation or current_screen==screen_pupil_calibration:
                     if state_edf=='not_started':
                         if split_line[0] == 'START':
+                            eye_start = split_line[2]
                             time_edf = time_edf_to_time_linux_scale(split_line[1])
                             state_edf = 'started'
                             total_time_fixation = 0
@@ -316,25 +377,141 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                                 pupil_normalization = np.sum(np.array(current_pupil_normalization)*np.array(current_pupil_normalization_times)/np.sum(current_pupil_normalization_times))
                                 assert(pupil_normalization>0)
                                 return pupil_normalization, dfs
+
                         elif current_screen in screen_dictation:
+                            if len(split_line)>6 and split_line[6]=='...':
+                                if not ((sum(current_sorce_rect)==0 or sum(current_dest_rect)==0) and correct_trial_0):
+                                    assert(current_delta_time!=0)
+                                    time_start = time_edf_to_time_linux_scale(split_line[0])+current_delta_time
+                                    if split_line[1]!='.':
+                                        normalized_pupil_size = float(split_line[3])/current_pupil_normalization
+                                        position_x_screen = float(split_line[1])
+                                        position_y_screen = float(split_line[2])
+                                        image_pixels_per_screen_pixel_x = (current_sorce_rect[2]-current_sorce_rect[0])/(current_dest_rect[2]-current_dest_rect[0])
+                                        image_pixels_per_screen_pixel_y = (current_sorce_rect[3]-current_sorce_rect[1])/(current_dest_rect[3]-current_dest_rect[1])
+                                        angular_resolution_x_screen = float(split_line[4])*image_pixels_per_screen_pixel_x
+                                        angular_resolution_y_screen = float(split_line[5])*image_pixels_per_screen_pixel_y
+                                        position_x, position_y = convert_screen_to_image_coordinates(position_x_screen, position_y_screen, current_dest_rect, current_sorce_rect)
+                                    else:
+                                        normalized_pupil_size = None
+                                        position_x = None
+                                        position_y = None
+                                        angular_resolution_x_screen = None
+                                        angular_resolution_y_screen = None
+                                    assert(type(current_pupil_normalization)==type(np.mean([0.0])))
+                                    new_row = {
+                                    'timestamp_sample':time_start,
+                                    'x_position':position_x,
+                                    'y_position':position_y,
+                                    'pupil_area_normalized': normalized_pupil_size,
+                                    'angular_resolution_x_pixels_per_degree':angular_resolution_x_screen,
+                                    'angular_resolution_y_pixels_per_degree':angular_resolution_y_screen,
+                                    'window_width':current_window_width,
+                                    'window_level':current_window_level,
+                                    'zoom_level':current_zoom,
+                                    'xmin_shown_from_image':current_sorce_rect[0], 
+                                    'ymin_shown_from_image':current_sorce_rect[1],
+                                    'xmax_shown_from_image':current_sorce_rect[2], 
+                                    'ymax_shown_from_image':current_sorce_rect[3], 
+                                    'xmin_in_screen_coordinates':current_dest_rect[0], 
+                                    'ymin_in_screen_coordinates':current_dest_rect[1],
+                                    'xmax_in_screen_coordinates':current_dest_rect[2],
+                                    'ymax_in_screen_coordinates':current_dest_rect[3]}
+                                    # if total_rows_written > 59:
+                                    #     1/0
+                                    with open(f'samples/t{trial}_u{user}_p{phase}_samples.csv', 'a' if header_samples_written else 'w') as f_object:
+                                        w = csv.DictWriter(f_object, new_row.keys())
+                                        if not header_samples_written:
+                                            w.writeheader()
+                                            header_samples_written = True
+                                        w.writerow(new_row)
+                                        total_rows_written += 1
+                                        f_object.close()
+                                    # new_row = {'user':user,'type':'sample',
+                                    # 'value':None,
+                                    # 'trial':trial,
+                                    # 'screen':current_screen,
+                                    # 'time_start_linux':time_start,
+                                    # 'position_x':position_x,
+                                    # 'position_y':position_y,
+                                    # 'pupil_size':pupil_size,
+                                    # 'pupil_size_normalization':current_pupil_normalization,
+                                    # 'angular_resolution_x':angular_resolution_x_screen, #screen pixels per visual degree, *image pixels per screen pixels
+                                    # 'angular_resolution_y':angular_resolution_y_screen,
+                                    # 'window_width':current_window_width,
+                                    # 'window_level':current_window_level,
+                                    # 'zoom_level':current_zoom,
+                                    # 'center_screen_x':(current_sorce_rect[0]+current_sorce_rect[2])/2,
+                                    # 'center_screen_y':(current_sorce_rect[1]+current_sorce_rect[3])/2,
+                                    # 'eye':eye_start, 
+                                    # 'source_rect_dimension_1':current_sorce_rect[0], 
+                                    # 'source_rect_dimension_2':current_sorce_rect[1],
+                                    # 'source_rect_dimension_3':current_sorce_rect[2], 
+                                    # 'source_rect_dimension_4':current_sorce_rect[3], 
+                                    # 'dest_rect_dimension_1':current_dest_rect[0], 
+                                    # 'dest_rect_dimension_2':current_dest_rect[1],
+                                    # 'dest_rect_dimension_3':current_dest_rect[2],
+                                    # 'dest_rect_dimension_4':current_dest_rect[3]}
+                                    # 
+                                    # dfs[current_screen] = dfs[current_screen].append(new_row, ignore_index=True)
+                            
                             if split_line[0] == 'SFIX':
-                                assert(current_screen==screen_pupil_calibration or sum(current_sorce_rect)>0 or (correct_trial_0 and trial in [1, 7, 9]))
-                                source_rect_while_starting_fixation = current_sorce_rect
+                                start_with_no_image = True
+                                if image_displayed:
+                                    assert(current_screen==screen_pupil_calibration or sum(current_sorce_rect)>0 or (correct_trial_0 and trial in [1, 7, 9]))
+                                    source_rect_while_starting_fixation = current_sorce_rect
+                                    dest_rect_while_starting_fixation = current_dest_rect
+                                    current_window_width_starting_time = time_edf_to_time_linux_scale(split_line[2])+current_delta_time
+                                    current_window_width_times = []
+                                    current_window_width_values = []
+                                    
+                                    current_window_level_starting_time = time_edf_to_time_linux_scale(split_line[2])+current_delta_time
+                                    current_window_level_times = []
+                                    current_window_level_values = []
+                                
                             if split_line[0] == 'EFIX':
-                                if not ((sum(source_rect_while_starting_fixation)==0 or sum(current_dest_rect)==0) and correct_trial_0):
+                                end_with_no_start = False
+                                try:
+                                    dest_rect_while_starting_fixation
+                                except UnboundLocalError:
+                                    assert(len(split_line[2])>=9 or start_with_no_image)
+                                    end_with_no_start = True
+                                
+                                if not end_with_no_start and not ((sum(source_rect_while_starting_fixation)==0 or sum(dest_rect_while_starting_fixation)==0) and correct_trial_0):
+                                    assert(len(split_line[2])<=9)
                                     eye = split_line[1]
                                     time_start = time_edf_to_time_linux_scale(split_line[2])+current_delta_time
                                     time_end = time_edf_to_time_linux_scale(split_line[3])+current_delta_time
+                                    assert(current_delta_time!=0)
                                     pupil_size = float(split_line[7])
                                     position_x_screen = float(split_line[5])
                                     position_y_screen = float(split_line[6])
                                     angular_resolution_x_screen = float(split_line[8])
                                     angular_resolution_y_screen = float(split_line[9])
                                     total_time_fixation = total_time_fixation + (time_end - time_start)
-                                    position_x, position_y = convert_screen_to_image_coordinates(position_x_screen, position_y_screen, current_dest_rect, source_rect_while_starting_fixation)
-                                    image_pixels_per_screen_pixel_x = (source_rect_while_starting_fixation[2]-source_rect_while_starting_fixation[0])/(current_dest_rect[2]-current_dest_rect[0])
-                                    image_pixels_per_screen_pixel_y = (source_rect_while_starting_fixation[3]-source_rect_while_starting_fixation[1])/(current_dest_rect[3]-current_dest_rect[1])
+                                    position_x, position_y = convert_screen_to_image_coordinates(position_x_screen, position_y_screen, dest_rect_while_starting_fixation, source_rect_while_starting_fixation)
+                                    image_pixels_per_screen_pixel_x = (source_rect_while_starting_fixation[2]-source_rect_while_starting_fixation[0])/(dest_rect_while_starting_fixation[2]-dest_rect_while_starting_fixation[0])
+                                    image_pixels_per_screen_pixel_y = (source_rect_while_starting_fixation[3]-source_rect_while_starting_fixation[1])/(dest_rect_while_starting_fixation[3]-dest_rect_while_starting_fixation[1])
                                     assert(type(current_pupil_normalization)==type(np.mean([0.0])))
+                                    
+                                    
+                                    current_window_width_times.append(time_end-current_window_width_starting_time)
+                                    current_window_width_values.append(current_window_width)
+                                    current_window_width_starting_time = time_end
+                                    
+                                    average_window_width = np.sum(np.array(current_window_width_values)*np.array(current_window_width_times)/np.sum(current_window_width_times))
+                                    
+                                    current_window_width_times = []
+                                    current_window_width_values = []
+                                    
+                                    current_window_level_times.append(time_end-current_window_level_starting_time)
+                                    current_window_level_values.append(current_window_level)
+                                    current_window_level_starting_time = time_end
+                                    
+                                    average_window_level = np.sum(np.array(current_window_level_values)*np.array(current_window_level_times)/np.sum(current_window_level_times))
+                                    
+                                    current_window_level_times = []
+                                    current_window_level_values = []
                                     
                                     new_row = {'user':user,'type':'fixation',
                                     'value':None,
@@ -348,8 +525,8 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                                     'pupil_size_normalization':current_pupil_normalization,
                                     'angular_resolution_x':angular_resolution_x_screen*image_pixels_per_screen_pixel_x, #screen pixels per visual degree, *image pixels per screen pixels
                                     'angular_resolution_y':angular_resolution_y_screen*image_pixels_per_screen_pixel_y,
-                                    'window_width':current_window_width,
-                                    'window_level':current_window_level,
+                                    'window_width':average_window_width,
+                                    'window_level':average_window_level,
                                     'zoom_level':current_zoom,
                                     'center_screen_x':(source_rect_while_starting_fixation[0]+source_rect_while_starting_fixation[2])/2,
                                     'center_screen_y':(source_rect_while_starting_fixation[1]+source_rect_while_starting_fixation[3])/2,
@@ -358,10 +535,10 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                                     'source_rect_dimension_2':source_rect_while_starting_fixation[1],
                                     'source_rect_dimension_3':source_rect_while_starting_fixation[2], 
                                     'source_rect_dimension_4':source_rect_while_starting_fixation[3], 
-                                    'dest_rect_dimension_1':current_dest_rect[0], 
-                                    'dest_rect_dimension_2':current_dest_rect[1],
-                                    'dest_rect_dimension_3':current_dest_rect[2],
-                                    'dest_rect_dimension_4':current_dest_rect[3]}
+                                    'dest_rect_dimension_1':dest_rect_while_starting_fixation[0], 
+                                    'dest_rect_dimension_2':dest_rect_while_starting_fixation[1],
+                                    'dest_rect_dimension_3':dest_rect_while_starting_fixation[2],
+                                    'dest_rect_dimension_4':dest_rect_while_starting_fixation[3]}
                                     
                                     dfs[current_screen] = dfs[current_screen].append(new_row, ignore_index=True)
                                     
@@ -381,6 +558,8 @@ def ASC2CSV(fname, user, pupil_normalization,screen_dictation=[2, 4, 7, 9], scre
                                 angular_resolution_y_screen = float(split_line[9])
                                 time_start = time_edf_to_time_linux_scale(split_line[2])+current_delta_time
                                 time_end = time_edf_to_time_linux_scale(split_line[3])+current_delta_time
+                                if current_screen in screen_dictation:
+                                    assert(current_delta_time!=0)
                                 print(angular_resolution_x_screen)
                                 print(angular_resolution_y_screen)
                                 print(math.sqrt(((position_x_screen-1920)/angular_resolution_x_screen)**2+((position_y_screen-1080)/angular_resolution_y_screen)**2))
@@ -590,7 +769,7 @@ def create_csv_gaze_phase_2():
         results_df_this_user = results_df[results_df['user']==user]
         print(results_df_this_user)
         discard_df_this_user = discard_df[discard_df['user']==user]
-        pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2)
+        pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, phase = 2)
         for trial_csv_key in trial_csv.keys():
             dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
         for trial in range(1,51):
@@ -618,7 +797,7 @@ def create_csv_gaze_phase_2():
                     assert(len(image_filepath)==1)
                     image_filepath = '/'.join(image_filepath[0].split('/')[image_filepath[0].split('/').index('physionet.org'):])
                     print(image_filepath)
-                    pupil_normalization, trial_csv = ASC2CSV(trial_filename, user, pupil_normalization, correct_trial_0 = False, chest_box_image = chest_box_image, image_filepath = image_filepath, discard = len(discard_df_this_user_this_trial)>0)
+                    pupil_normalization, trial_csv = ASC2CSV(trial_filename, user, pupil_normalization, correct_trial_0 = False, chest_box_image = chest_box_image, image_filepath = image_filepath, discard = len(discard_df_this_user_this_trial)>0, phase = 2)
                     for trial_csv_key in trial_csv.keys():
                         dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
     df = pd.DataFrame(columns=columns_csv)
@@ -638,7 +817,7 @@ def create_csv_gaze_phase_3():
         print(user)
         results_df_this_user = results_df[results_df['user']==user]
         discard_df_this_user = discard_df[discard_df['user']==user]
-        pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2)
+        pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, phase = 3)
         for trial_csv_key in trial_csv.keys():
             dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
         for trial in range(1,550):
@@ -662,13 +841,13 @@ def create_csv_gaze_phase_3():
             chest_box_image = [x1,y1,x2,y2]
             list_of_et_suffix = ['', 'pt2']
             for et_suffix in list_of_et_suffix:
-                trial_filename = root_folders+folder+'/et'+str(trial)+et_suffix+'.asc'
+                trial_filename = root_folders+folder.replace('anonymized_collected_data','anonymized_collected_data_full_samples')+'/et'+str(trial)+et_suffix+'.asc'
                 if os.path.isfile(trial_filename):
                     image_filepath = results_df_this_user_this_trial[results_df_this_user_this_trial['title']=='filepath']['value'].values
                     assert(len(image_filepath)==1)
                     image_filepath = '/'.join(image_filepath[0].split('/')[image_filepath[0].split('/').index('physionet.org'):])
                     print(image_filepath)
-                    pupil_normalization, trial_csv = ASC2CSV(trial_filename, user, pupil_normalization, correct_trial_0 = False, chest_box_image = chest_box_image, image_filepath = image_filepath, discard = len(discard_df_this_user_this_trial)>0)
+                    pupil_normalization, trial_csv = ASC2CSV(trial_filename, user, pupil_normalization, correct_trial_0 = False, chest_box_image = chest_box_image, image_filepath = image_filepath, discard = len(discard_df_this_user_this_trial)>0, phase = 3)
                     for trial_csv_key in trial_csv.keys():
                         dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
     df = pd.DataFrame(columns=columns_csv)
@@ -697,14 +876,18 @@ def create_csv_gaze_phase_1():
         results_df_this_user = results_df[results_df['user']==user]
         discard_df_this_user = discard_df[discard_df['user']==user]
         if user == 'user5':
-            pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/et0.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, skip_after_pupil = True )
+            pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/et0.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, skip_after_pupil = True, phase = 1 )
         else:
-            pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2)
+            if user == 'user2':
+                pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil_pre.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, phase = 1)
+                for trial_csv_key in trial_csv.keys():
+                    dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
+            pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+'/inpupil.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, phase = 1)
         for trial_csv_key in trial_csv.keys():
             dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
         for trial in range(1,61):
             if user=='user5' and trial in [1, 7, 9]:
-                pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+f'/et{trial-1}.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, skip_after_pupil = True )
+                pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+f'/et{trial-1}.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, skip_after_pupil = True, phase = 1 )
             results_df_this_user_this_trial = results_df_this_user[results_df_this_user['trial']!='all']
             results_df_this_user_this_trial = results_df_this_user_this_trial[results_df_this_user_this_trial['trial'].values.astype(float)==trial]
             
@@ -725,7 +908,7 @@ def create_csv_gaze_phase_1():
                 assert(len(image_filepath)==1)
                 image_filepath = '/'.join(image_filepath[0].split('/')[image_filepath[0].split('/').index('physionet.org'):])
                 print(image_filepath)
-                pupil_normalization, trial_csv = ASC2CSV(trial_filename, user, pupil_normalization, correct_trial_0 = user=='user5', chest_box_image = chest_box_image, image_filepath = image_filepath, discard = len(discard_df_this_user_this_trial)>0)
+                pupil_normalization, trial_csv = ASC2CSV(trial_filename, user, pupil_normalization, correct_trial_0 = user=='user5', chest_box_image = chest_box_image, image_filepath = image_filepath, discard = len(discard_df_this_user_this_trial)>0, phase = 1)
                 for trial_csv_key in trial_csv.keys():
                     dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
     df = pd.DataFrame(columns=columns_csv)
@@ -735,5 +918,5 @@ def create_csv_gaze_phase_1():
 
 if __name__ == '__main__':
     create_csv_gaze_phase_1()
-    create_csv_gaze_phase_2()
+    # create_csv_gaze_phase_2()
     # create_csv_gaze_phase_3()

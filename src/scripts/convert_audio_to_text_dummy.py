@@ -1,10 +1,4 @@
-import os
-import io
-import os
-import wave
-import pickle
 import argparse
-import pickle
 import shutil
 
 parser = argparse.ArgumentParser(description='Process some integers.')

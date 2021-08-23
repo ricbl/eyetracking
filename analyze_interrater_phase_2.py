@@ -283,12 +283,19 @@ def analyze_interrater_reliability():
     for k in range(len(labels_list)):
         array_to_use = disease_labels_array
         trials_to_use = range(1,full_array.shape[1]+1)
+        print(print(np.sum(array_to_use[:,:,k])))
+        print(np.sum(array_to_use[:,:,k], 1))
+        print(np.sum(array_to_use[:,:,k], 0))
         formatted_codes = [[j,i,array_to_use[j,i,k]] for i in range(array_to_use.shape[1])  for j in range(array_to_use.shape[0])]
+        
         ratingtask = agreement.AnnotationTask(data=formatted_codes)
         try:
             value = ratingtask.multi_kappa()
         except ZeroDivisionError:
             value = None
+        # print(labels_list[k])
+        # print(value)
+        # 1/0
         new_row = {'user':'all', 'label':labels_list[k], 'trial':'all', 'title':'Fleiss Kappa', 'value':value}
         results_csv = results_csv.append(new_row, ignore_index=True)
     

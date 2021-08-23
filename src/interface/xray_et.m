@@ -1,15 +1,17 @@
 function xray_et
     !numlockx on
     %get input
-    prompt={'User identifier','Dataset identifier (3 numbers)' 'ET on? 1 if yes', 'Continue from last finished case? 1 if yes', 'Starting case', 'Total cases completed', 'Perform live transcription', 'Time for pupil', 'Dataset name', 'BBox from center', 'Skip instruction screens', 'Skip chest box', 'Record Videos'};
-     def={'test','204','0','1', '1', '0', '0','1','mimic', '0', '0','0','0'};
+    prompt={'\fontsize{24}User identifier','\fontsize{24}Dataset identifier (3 numbers)' '\fontsize{24}ET on? 1 if yes', '\fontsize{24}Continue from last finished case? 1 if yes', '\fontsize{24}Starting case', '\fontsize{24}Total cases completed', '\fontsize{24}Perform live transcription', '\fontsize{24}Time for pupil', '\fontsize{24}Dataset name', '\fontsize{24}BBox from center', '\fontsize{24}Skip instruction screens', '\fontsize{24}Skip chest box', '\fontsize{24}Record Videos'};
+     %def={'test','101','0','1', '1', '0', '0','1','mimic', '0', '0','0','0'};
+     def={'test','101','0','0', '8', '0', '0','1','mimic', '0', '0','0','0'};
 %     def={'user1','306','1','1', '1', '0', '3','15','mimic', '0', '0','0','0'};
 %     def={'user2','307','1','1', '1', '0', '3','15','mimic', '0', '1','0','0'};
 %     def={'user3','308','1','1', '1', '0', '3','15','mimic', '0', '0','0','0'};
 %     def={'user4','309','1','1', '1', '0', '3','15','mimic', '0', '0','0','0'};
 %     def={'user5','310','1','1', '1', '0', '3','15','mimic', '1', '0','0','0'};
-
-    userinput=inputdlg(prompt,'Input variables',1,def,'on');
+    options.Resize = 'on';
+    options.Interpreter = 'tex';
+    userinput=inputdlg(prompt,'Input variables',1,def,options);
     
     user_name = userinput{1,1};
     experiment_name = userinput{2,1};

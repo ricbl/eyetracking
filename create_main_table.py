@@ -10,13 +10,33 @@ import re
 import random
 import time
 
+pd.options.mode.chained_assignment = 'raise'
+
 list_of_users = sorted(['user1','user2','user3','user4','user5'])
+
+def save_csv(df, file_path, columns = None):
+    with open(file_path, mode='w', newline='\r\n') as f:
+        if columns is None:
+            df.to_csv(f, ',', index=False)
+        else:
+            df.to_csv(f, ',', index=False, columns = columns)
+
+def round_dataframe(dataframe, dict_rounds):
+    for column_name,round_decimals in dict_rounds.items():
+        # print(column_name)
+        # print(dataframe[column_name])
+        dataframe.loc[:,column_name] = round(dataframe[column_name], round_decimals)
+        if round_decimals==0:
+            dataframe.loc[:,column_name] = dataframe[column_name].map(lambda x: str(int(x)) if x==x else '')
+    return dataframe
 
 def get_main_table(experiment_folders, phase, all_trials):
     transcriptions_table = pd.read_csv(f'anonymized_collected_data/phase_{phase}/phase_{phase}_transcriptions_anon.csv')
     others_table = pd.read_csv(f'anonymized_collected_data/phase_{phase}/other_phase_{phase}.csv')
     fixations_table = pd.read_csv(f'summary_edf_phase_{phase}.csv')
     results_table = pd.read_csv(f'results_phase_{phase}.csv')
+    results_table['label']=results_table['label'].apply(lambda item: item[:1].upper() + item[1:].lower() if type(item)==type('a') and len(item)>1 else item)
+    
     discard_table = pd.read_csv('discard_cases.csv')
     discard_table = discard_table[discard_table['phase']==phase]
     
@@ -66,7 +86,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                     f = open(json_filename,'r')
                     data = json.load(f)
                     f.close()
-                    pd.DataFrame(data['timestamps'], columns = ['word', 'timestamp_start_word', 'timestamp_end_word']).to_csv(f'built_dataset/{id}/timestamps_transcription.csv', index = False)
+                    save_csv(pd.DataFrame(data['timestamps'], columns = ['word', 'timestamp_start_word', 'timestamp_end_word']), f'built_dataset/{id}/timestamps_transcription.csv')
                     # shutil.copyfile(json_filename, f'built_dataset/{id}/timestamps_transcription.json')
                     transcription = transcriptions_table[(transcriptions_table['user']==user) & (transcriptions_table['trial']==trial)]['transcription'].values
                     assert(len(transcription)==1)
@@ -86,8 +106,10 @@ def get_main_table(experiment_folders, phase, all_trials):
                 for i in range(4):
                     chest_box_coordinate = results_this_id[results_this_id['title']==f'ChestBox (Rectangle) coord {i}']['value'].values
                     assert(len(chest_box_coordinate)==1)
-                    coordinates[coordinates_names[i]] = chest_box_coordinate[0]
-                pd.DataFrame([coordinates], columns = coordinates_names).to_csv(f'built_dataset/{id}/chest_bounding_box.csv', index = False)
+                    coordinates[coordinates_names[i]] = float(chest_box_coordinate[0])
+                
+                save_csv(round_dataframe(pd.DataFrame([coordinates], columns = coordinates_names), {'xmin':0,'ymin':0,'xmax':0,'ymax':0
+                                                    }), f'built_dataset/{id}/chest_bounding_box.csv')
                 # f = open(f'built_dataset/{id}/chest_bounding_box.json','w')
                 # json_transcription=json.dump(coordinates, f, indent = 2)
                 # f.close()
@@ -95,17 +117,19 @@ def get_main_table(experiment_folders, phase, all_trials):
                 #fixations
                 fixations_table_this_id = fixations_table[(fixations_table['screen']==2) & (fixations_table['user']==user) & (fixations_table['trial']==trial)]
                 if not discarded:
-                    fixations = fixations_table_this_id[fixations_table_this_id['type']=='fixation']
+                    fixations = fixations_table_this_id[fixations_table_this_id['type']=='fixation'].copy()
+                    fixations['pupil_area_normalized'] = fixations['pupil_size']/fixations['pupil_size_normalization']
                     columns_fixations = {'time_start_linux': 'timestamp_start_fixation',
                     'time_linux':'timestamp_end_fixation', 
-                    'position_x':'average_x_position', 
-                    'position_y':'average_y_position', 
-                    'pupil_size': 'pupil_area',
-                    'pupil_size_normalization': 'pupil_area_normalization_constant', 
+                    'position_x':'x_position', 
+                    'position_y':'y_position', 
+                    'pupil_area_normalized':'pupil_area_normalized',
+                    # 'pupil_size': 'pupil_area',
+                    # 'pupil_size_normalization': 'pupil_area_normalization_constant', 
                     'angular_resolution_x':'angular_resolution_x_pixels_per_degree',
                     'angular_resolution_y':'angular_resolution_y_pixels_per_degree',
-                    # 'window_width':,
-                    # 'window_level':,
+                    'window_width':'window_width',
+                    'window_level':'window_level',
                     'source_rect_dimension_1':'xmin_shown_from_image',
                     'source_rect_dimension_2':'ymin_shown_from_image',
                     'source_rect_dimension_3':'xmax_shown_from_image',
@@ -116,16 +140,89 @@ def get_main_table(experiment_folders, phase, all_trials):
                     'dest_rect_dimension_4':'ymax_in_screen_coordinates'}
                     fixations = fixations[columns_fixations.keys()].rename(columns = columns_fixations)
                     
-                    fixations.loc[:,'timestamp_start_fixation'] = (fixations['timestamp_start_fixation']-timestamp_start_audio)*60*60*24
-                    fixations.loc[:,'timestamp_end_fixation'] = (fixations['timestamp_end_fixation']-timestamp_start_audio)*60*60*24
+                    fixations.loc[:,'timestamp_start_fixation'] = round((fixations['timestamp_start_fixation']-timestamp_start_audio)*60*60*24, 3)
+                    fixations.loc[:,'timestamp_end_fixation'] = round((fixations['timestamp_end_fixation']-timestamp_start_audio)*60*60*24, 3)
+                    
+                    fixations = round_dataframe(fixations, {'x_position':0, 
+                                                        'y_position':0, 
+                                                        'pupil_area_normalized':3, 
+                                                        'angular_resolution_x_pixels_per_degree':0,
+                                                        'angular_resolution_y_pixels_per_degree':0,
+                                                        'window_width':5,
+                                                        'window_level':5,
+                                                        'xmin_shown_from_image':0,
+                                                        'ymin_shown_from_image':0,
+                                                        'xmax_shown_from_image':0,
+                                                        'ymax_shown_from_image':0,
+                                                        'xmin_in_screen_coordinates':0,
+                                                        'ymin_in_screen_coordinates':0,
+                                                        'xmax_in_screen_coordinates':0,
+                                                        'ymax_in_screen_coordinates':0,
+                                                        })
+
                     assert(len(fixations)>0)
-                    fixations.to_csv(f'built_dataset/{id}/fixations.csv',index = False)
+                    save_csv(fixations, f'built_dataset/{id}/fixations.csv')
+                
+                #samples
+                if not discarded:
+                    samples = pd.read_csv(f'samples/t{trial}_u{user}_p{phase}_samples.csv')
+                    first_timestamp = (samples['timestamp_sample'].values[0]-timestamp_start_audio)*60*60*24
+                    print(round(first_timestamp,3))
+                    remainder_first_timestamp = (first_timestamp-round(first_timestamp,3))
+                    # samples.loc[:,'timestamp_sample_no_round'] = (samples['timestamp_sample']-timestamp_start_audio)*60*60*24
+                    samples.loc[:,'timestamp_sample'] = round((samples['timestamp_sample']-timestamp_start_audio)*60*60*24-remainder_first_timestamp, 3)
+                    
+                    samples = round_dataframe(samples, {'x_position':0, 
+                                                        'y_position':0, 
+                                                        'pupil_area_normalized':3, 
+                                                        'angular_resolution_x_pixels_per_degree':0,
+                                                        'angular_resolution_y_pixels_per_degree':0,
+                                                        'window_width':5,
+                                                        'window_level':5,
+                                                        'zoom_level':2,
+                                                        'xmin_shown_from_image':0,
+                                                        'ymin_shown_from_image':0,
+                                                        'xmax_shown_from_image':0,
+                                                        'ymax_shown_from_image':0,
+                                                        'xmin_in_screen_coordinates':0,
+                                                        'ymin_in_screen_coordinates':0,
+                                                        'xmax_in_screen_coordinates':0,
+                                                        'ymax_in_screen_coordinates':0,
+                                                        })
+                    samples = samples.drop(columns=['zoom_level'])
+                    save_csv(samples, f'built_dataset/{id}/gaze.csv')
+                    # samples = fixations_table_this_id[fixations_table_this_id['type']=='sample']
+                    # samples['pupil_area_normalized'] = samples['pupil_size']/samples['pupil_size_normalization']
+                    # columns_fixations = {'time_start_linux': 'timestamp',
+                    # 'position_x':'x_position', 
+                    # 'position_y':'y_position', 
+                    # 'pupil_area_normalized':'pupil_area_normalized',
+                    # # 'pupil_size': 'pupil_area',
+                    # # 'pupil_size_normalization': 'pupil_area_normalization_constant', 
+                    # 'angular_resolution_x':'angular_resolution_x_pixels_per_degree',
+                    # 'angular_resolution_y':'angular_resolution_y_pixels_per_degree',
+                    # 'window_width':'window_width',
+                    # 'window_level':'window_level',
+                    # 'source_rect_dimension_1':'xmin_shown_from_image',
+                    # 'source_rect_dimension_2':'ymin_shown_from_image',
+                    # 'source_rect_dimension_3':'xmax_shown_from_image',
+                    # 'source_rect_dimension_4':'ymax_shown_from_image',
+                    # 'dest_rect_dimension_1':'xmin_in_screen_coordinates',
+                    # 'dest_rect_dimension_2':'ymin_in_screen_coordinates',
+                    # 'dest_rect_dimension_3':'xmax_in_screen_coordinates',
+                    # 'dest_rect_dimension_4':'ymax_in_screen_coordinates'}
+                    # samples = samples[columns_fixations.keys()].rename(columns = columns_fixations)
+                    # 
+                    # samples.loc[:,'timestamp_start_fixation'] = (samples['timestamp_start_fixation']-timestamp_start_audio)*60*60*24
+                    # samples.loc[:,'timestamp_end_fixation'] = (samples['timestamp_end_fixation']-timestamp_start_audio)*60*60*24
+                    # assert(len(samples)>0)
+                    # save_csv(samples, f'built_dataset/{id}/fixations.csv')
                 
                 #window, zoom
                 if not discarded:
                     columns_windows = {'level':'window_level',
                     'width':'window_width',
-                    'zoom':'zoom_multiplier',
+                    'zoom':'zoom_level',
                     'source_rect_dimension_1':'xmin_shown_from_image',
                     'source_rect_dimension_2':'ymin_shown_from_image',
                     'source_rect_dimension_3':'xmax_shown_from_image',
@@ -144,11 +241,12 @@ def get_main_table(experiment_folders, phase, all_trials):
                         if column_name =='zoom':
                             continue
                         first_value = image_exhibition_values[image_exhibition_values['title']==column_name]['value'].values[0]
-                        current_values[column_name] = first_value
+                        current_values[column_name] = float(first_value)
                     current_values['zoom'] = 1
                     all_values = []
                     started_writing = False
                     started_zoom = False
+                    print(image_exhibition_values.columns)
                     for _,row in image_exhibition_values.iterrows():
                         if started_writing and row['title'] in ['zoom','level']:
                             started_zoom = True
@@ -158,13 +256,27 @@ def get_main_table(experiment_folders, phase, all_trials):
                             previous_timestamp = current_values['timestamp']
                             
                         if started_zoom:
-                            current_values[row['title']] = row['value']
+                            current_values[row['title']] = float(row['value'])
                         
                         if (not started_writing and row['title']=='width') or (started_zoom and row['title'] in ['dest_rect_dimension_4', 'width']):
                             all_values.append(deepcopy(current_values))
                             started_zoom = False
                             started_writing = True
-                    # pd.DataFrame(all_values).rename(columns = columns_windows).to_csv(f'built_dataset/{id}/image_exhibition_window_zoom.csv',index = False)
+                    window_df = pd.DataFrame(all_values).rename(columns = columns_windows)
+                    window_df = round_dataframe(window_df, {'timestamp':3,
+                                                        'zoom_level':2,
+                                                        'window_width':5,
+                                                        'window_level':5,
+                                                        'xmin_shown_from_image':0,
+                                                        'ymin_shown_from_image':0,
+                                                        'xmax_shown_from_image':0,
+                                                        'ymax_shown_from_image':0,
+                                                        'xmin_in_screen_coordinates':0,
+                                                        'ymin_in_screen_coordinates':0,
+                                                        'xmax_in_screen_coordinates':0,
+                                                        'ymax_in_screen_coordinates':0,
+                                                        })
+                    # save_csv(window_df, f'built_dataset/{id}/image_exhibition_window_zoom.csv')
                 
                 #labels and main table
                 answers = results_this_id[results_this_id['title']=='trial_answer']
@@ -210,7 +322,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                 assert(len(check_image_y)==1)
                 check_image_y = int(float(check_image_y[0]))
                 assert(check_image_y==image_y)
-                row_= {'id':id,'split':split[0],'eye_tracking_data_discarded':discarded,'image':image_filepath[0],'subject_id':image_filepath[0].split('/')[-3][1:],'image_size_x':image_x, 'image_size_y':image_y}
+                row_= {'id':id,'split':split[0],'eye_tracking_data_discarded':discarded,'image':image_filepath[0],'dicom_id':image_filepath[0].split('/')[-1][:-4],'subject_id':image_filepath[0].split('/')[-3][1:],'image_size_x':image_x, 'image_size_y':image_y}
                 row_.update(row)
                 main_table.append(row_)
                 
@@ -228,7 +340,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                         ellipse_coordinate = results_this_id[(results_this_id['title']==f'BBox (Ellipse) coord {i}')]
                         ellipse_coordinate = ellipse_coordinate[(ellipse_coordinate['extra_info'].astype(float)==ellipse_index)]['value'].values
                         assert((ellipse_coordinate==ellipse_coordinate[0]).all())
-                        coordinates[coordinates_names[i]] = ellipse_coordinate[0]
+                        coordinates[coordinates_names[i]] = float(ellipse_coordinate[0])
                     ellipses_json[index]['coordinates'] = coordinates
                     ellipses[index].update(coordinates)
                     ellipse_certainties = results_this_id[(results_this_id['title']==f'BBox (Ellipse) certainty')]
@@ -240,10 +352,16 @@ def get_main_table(experiment_folders, phase, all_trials):
                         labels[row['label']] = True
                         certainty = row['value']
                     ellipses_json[index]['labels'] = labels_json
+                    
                     ellipses[index].update(labels)
                     ellipses[index]['certainty'] = certainty
                     ellipses_json[index]['certainty'] = certainty
-                pd.DataFrame(ellipses, columns = coordinates_names + ['certainty'] + labels_list).to_csv(f'built_dataset/{id}/anomaly_location_ellipses.csv', index = False)
+                
+                ellipses_df = pd.DataFrame(ellipses, columns = coordinates_names + ['certainty'] + labels_list)
+                assert(all([ellipses_df.loc[row_index,labels_list].values.any() for row_index in range(len(ellipses_df))]))
+                ellipses_df = round_dataframe(ellipses_df, {'xmin':0,'ymin':0,'xmax':0,'ymax':0
+                                                                    })
+                save_csv(ellipses_df, f'built_dataset/{id}/anomaly_location_ellipses.csv')
                 # f = open(f'built_dataset/{id}/anomaly_location_ellipses.json','w')
                 # json_transcription=json.dump(ellipses_json, f, indent = 2)
                 # f.close()
@@ -257,7 +375,7 @@ def get_main_table(experiment_folders, phase, all_trials):
         main_table = main_table.sort_values(by=['id'])
     else:
         main_table = main_table.sort_values(by=['image'])
-    main_table.to_csv(f'built_dataset/metadata_phase_{phase}.csv',index=False, columns = ['id','split','eye_tracking_data_discarded','image','subject_id','image_size_x', 'image_size_y'] + labels_list)
+    save_csv(main_table, f'built_dataset/metadata_phase_{phase}.csv', columns = ['id','split','eye_tracking_data_discarded','image','dicom_id','subject_id','image_size_x', 'image_size_y'] + labels_list)
     access_time = time.time()
     pathlist = list(Path('./built_dataset/').glob('**/*')) + list(Path('./built_dataset/').glob('**'))
     print(len(pathlist))

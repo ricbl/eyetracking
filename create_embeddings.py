@@ -132,13 +132,13 @@ def create_embedding(sequence_table, dicom_id):
         image_pixels_per_screen_pixel_x = (shown_rects_image_space[2]-shown_rects_image_space[0])/(shown_rects_screen_space[2]-shown_rects_screen_space[0])
         image_pixels_per_screen_pixel_y = (shown_rects_image_space[3]-shown_rects_image_space[1])/(shown_rects_screen_space[3]-shown_rects_screen_space[1])
 
-        x_screen, y_screen = convert_image_to_screen_coordinates(row['average_x_position'], row['average_y_position'], shown_rects_screen_space, shown_rects_image_space)
+        x_screen, y_screen = convert_image_to_screen_coordinates(row['x_position'], row['y_position'], shown_rects_screen_space, shown_rects_image_space)
         distance_to_image = distance_point_rectangle([x_screen, y_screen],shown_rects_screen_space)
         distance_to_buttons = distance_point_rectangle([x_screen, y_screen],buttons_rectangle)
         distance_to_image_angle = distance_point_rectangle([x_screen, y_screen],shown_rects_screen_space, image_pixels_per_screen_pixel_x/row['angular_resolution_x_pixels_per_degree'], image_pixels_per_screen_pixel_y/row['angular_resolution_y_pixels_per_degree'])
         if distance_to_image==0 or (distance_to_buttons>50 and distance_to_image_angle<0.5):
         
-            gaussian = get_gaussian(row['average_y_position'],row['average_x_position'], row['angular_resolution_y_pixels_per_degree']*angle_circle, row['angular_resolution_x_pixels_per_degree']*angle_circle, size_y
+            gaussian = get_gaussian(row['y_position'],row['x_position'], row['angular_resolution_y_pixels_per_degree']*angle_circle, row['angular_resolution_x_pixels_per_degree']*angle_circle, size_y
             ,size_x, shown_rects_image_space)
             gaussian_old_shape = gaussian.shape
             p_fixation = np.sum(gaussian)

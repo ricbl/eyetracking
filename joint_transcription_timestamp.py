@@ -6,16 +6,23 @@ from collections import defaultdict
 import os
 import pickle
 import numpy as np
-from libindic.syllabifier import Syllabifier
 import glob
-
-instance = Syllabifier()
-
+from copy import  copy
+from decimal import Decimal
+import syllables
+from nltk.corpus import cmudict
+cmudict_dict = cmudict.dict()
+  
 list_of_users = sorted(['user1','user2','user3','user4','user5'])
-# import pyphen
-# dic = pyphen.Pyphen(lang='en')
-# from hyphen import Hyphenator
-# h = Hyphenator('en_US')
+
+def inverse_replace_punctuation(input_string):
+    if input_string=='.':
+        return 'period'
+    if input_string==',':
+        return 'comma'
+    if input_string=='/':
+        return 'slash'
+    return input_string
 
 def replace_punctuation(input_string):
     if input_string=='period':
@@ -69,7 +76,14 @@ def get_timestamp_from_float_index(list_words, float_index, stick_following):
     assert(False)
 
 def get_n_syllables(word):
-    return len(instance.syllabify_en(word)) - len(word)-1
+    word = inverse_replace_punctuation(word)
+    word = word.lower()
+    if word in cmudict_dict.keys():
+        return sum(map(lambda x : x[-1].isdigit(), cmudict_dict[word][0]))
+    else:
+        return syllables.estimate(word)
+    # return len(instance.syllabify_en(word)) - len(word)-1
+
 from fractions import Fraction
 def get_ratio_syllables_removed_vs_added(added_words,removed_words):
     total_sylables_removed = 0
@@ -98,6 +112,7 @@ def adjust_timestamps_form_removed_to_added(added_words,removed_words,result_tim
         ratio_sylables = get_ratio_syllables_removed_vs_added(added_words,removed_words)
         added_words_index = 0
         removed_words_index = 0
+        result_timestamps_2 = copy(result_timestamps)
         for added_word in added_words:
             num_sylables = get_n_syllables(added_word)
             timestamp_start = get_timestamp_from_float_index(removed_words, removed_words_index, True)
@@ -106,12 +121,34 @@ def adjust_timestamps_form_removed_to_added(added_words,removed_words,result_tim
             timestamp_end = get_timestamp_from_float_index(removed_words, removed_words_index, False)
             assert(timestamp_end is not None)
             result_timestamps.append([added_word,timestamp_start,timestamp_end])
+        # index_removed_word = 0
+        # count_syllables_added = 0
+        # for word in added_words:
+        #     this_removed_word = removed_words[index_removed_word]
+        #     this_removed_word_n_syllables = Fraction(get_n_syllables(this_removed_word[0]),ratio_sylables)
+        #     timestamp_start = (this_removed_word[2]-this_removed_word[1])*count_syllables_added/this_removed_word_n_syllables+this_removed_word[1]
+        #     count_syllables_added += get_n_syllables(word)
+        #     while count_syllables_added > this_removed_word_n_syllables:
+        #         count_syllables_added -= this_removed_word_n_syllables
+        #         index_removed_word += 1
+        #         this_removed_word_n_syllables = Fraction(get_n_syllables(removed_words[index_removed_word][0]),ratio_sylables)
+        #     this_removed_word = removed_words[index_removed_word]
+        #     timestamp_end = (this_removed_word[2]-this_removed_word[1])*count_syllables_added/this_removed_word_n_syllables+this_removed_word[1]
+        #     result_timestamps_2.append([word,round(timestamp_start,2),round(timestamp_end,2)])
+        # 
+        #     # so that if words from both list are ending, you get the timestamp of the start of the following word
+        #     if count_syllables_added == this_removed_word_n_syllables:
+        #         count_syllables_added -= this_removed_word_n_syllables
+        #         index_removed_word += 1
+        # print(result_timestamps_2)
+        # print(result_timestamps)
+        # assert(result_timestamps_2==result_timestamps)
     return result_timestamps
 
 def open_transcription_json_ibm(json_filename):
     with open(json_filename) as f:
         b = json.load(f)
-        json_ibm = [[replace_punctuation(item[0].lower()), item[1], item[2]] for sublist in [b['results'][i]['alternatives'][0]['timestamps'] for i in range(len(b['results']))] for item in sublist ]
+        json_ibm = [[replace_punctuation(item[0].lower()), Fraction(round(item[1]*100),100), Fraction(round(item[2]*100),100)] for sublist in [b['results'][i]['alternatives'][0]['timestamps'] for i in range(len(b['results']))] for item in sublist ]
     return json_ibm
 
 def add_delay_to_all_timestamps(timestamps, delay):
@@ -197,6 +234,8 @@ def get_joined_json_from_folder(experiment_folder, results_file, all_trials, use
             assert(len(transcriptions_file_this_trial)==1)
             string_real = transcriptions_file_this_trial['transcription'].values[0].lower()
             new_timestamps = get_timestamp_for_case(json_filename,json_trim_filename,string_real,use_trim)
+            print(new_timestamps)
+            new_timestamps['timestamps'] = [ [item[0],float(item[1]),float(item[2])] for item in new_timestamps['timestamps']]
             with open(experiment_folder + '/' + str(trial) + '_joined.json', 'w') as outfile:
                 json.dump(new_timestamps, outfile)
             new_timestamps['user'] = list_of_users.index(user)
