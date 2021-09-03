@@ -74,11 +74,12 @@ def get_main_table(experiment_folders, phase, all_trials):
                         id = f"P{phase}{trial:02}R{r:06}"
                     else:
                         id = f"P{phase}00R{r:06}"
-                    if not os.path.isdir(f'built_dataset/{id}'):
+                    if not os.path.isdir(f'built_dataset/main_data/{id}'):
                         break
                     count += 1
                     assert(count<9999)
-                Path(f'built_dataset/{id}').mkdir(parents=True, exist_ok=True)
+                Path(f'built_dataset/main_data/{id}').mkdir(parents=True, exist_ok=True)
+                Path(f'built_dataset/gaze_data/{id}').mkdir(parents=True, exist_ok=True)
                 total_folders[user] +=1
                 
                 if not discarded:
@@ -86,15 +87,15 @@ def get_main_table(experiment_folders, phase, all_trials):
                     f = open(json_filename,'r')
                     data = json.load(f)
                     f.close()
-                    save_csv(pd.DataFrame(data['timestamps'], columns = ['word', 'timestamp_start_word', 'timestamp_end_word']), f'built_dataset/{id}/timestamps_transcription.csv')
-                    # shutil.copyfile(json_filename, f'built_dataset/{id}/timestamps_transcription.json')
+                    save_csv(pd.DataFrame(data['timestamps'], columns = ['word', 'timestamp_start_word', 'timestamp_end_word']), f'built_dataset/main_data/{id}/timestamps_transcription.csv')
+                    # shutil.copyfile(json_filename, f'built_dataset/main_data/{id}/timestamps_transcription.json')
                     transcription = transcriptions_table[(transcriptions_table['user']==user) & (transcriptions_table['trial']==trial)]['transcription'].values
                     assert(len(transcription)==1)
                     f = open(json_filename,)
                     json_transcription=json.load(f)
                     f.close()
                     assert(transcription[0].replace('.',' .').replace(',', ' ,')==' '.join([item[0] for item in json_transcription['timestamps']]))
-                    text_file = open(f'built_dataset/{id}/transcription.txt', "w")
+                    text_file = open(f'built_dataset/main_data/{id}/transcription.txt', "w")
                     text_file.write(transcription[0])
                     text_file.close()
                 
@@ -109,8 +110,8 @@ def get_main_table(experiment_folders, phase, all_trials):
                     coordinates[coordinates_names[i]] = float(chest_box_coordinate[0])
                 
                 save_csv(round_dataframe(pd.DataFrame([coordinates], columns = coordinates_names), {'xmin':0,'ymin':0,'xmax':0,'ymax':0
-                                                    }), f'built_dataset/{id}/chest_bounding_box.csv')
-                # f = open(f'built_dataset/{id}/chest_bounding_box.json','w')
+                                                    }), f'built_dataset/main_data/{id}/chest_bounding_box.csv')
+                # f = open(f'built_dataset/main_data/{id}/chest_bounding_box.json','w')
                 # json_transcription=json.dump(coordinates, f, indent = 2)
                 # f.close()
                 
@@ -161,7 +162,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                                                         })
 
                     assert(len(fixations)>0)
-                    save_csv(fixations, f'built_dataset/{id}/fixations.csv')
+                    save_csv(fixations, f'built_dataset/main_data/{id}/fixations.csv')
                 
                 #samples
                 if not discarded:
@@ -190,7 +191,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                                                         'ymax_in_screen_coordinates':0,
                                                         })
                     samples = samples.drop(columns=['zoom_level'])
-                    save_csv(samples, f'built_dataset/{id}/gaze.csv')
+                    save_csv(samples, f'built_dataset/gaze_data/{id}/gaze.csv')
                     # samples = fixations_table_this_id[fixations_table_this_id['type']=='sample']
                     # samples['pupil_area_normalized'] = samples['pupil_size']/samples['pupil_size_normalization']
                     # columns_fixations = {'time_start_linux': 'timestamp',
@@ -216,7 +217,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                     # samples.loc[:,'timestamp_start_fixation'] = (samples['timestamp_start_fixation']-timestamp_start_audio)*60*60*24
                     # samples.loc[:,'timestamp_end_fixation'] = (samples['timestamp_end_fixation']-timestamp_start_audio)*60*60*24
                     # assert(len(samples)>0)
-                    # save_csv(samples, f'built_dataset/{id}/fixations.csv')
+                    # save_csv(samples, f'built_dataset/main_data/{id}/fixations.csv')
                 
                 #window, zoom
                 if not discarded:
@@ -276,7 +277,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                                                         'xmax_in_screen_coordinates':0,
                                                         'ymax_in_screen_coordinates':0,
                                                         })
-                    # save_csv(window_df, f'built_dataset/{id}/image_exhibition_window_zoom.csv')
+                    # save_csv(window_df, f'built_dataset/main_data/{id}/image_exhibition_window_zoom.csv')
                 
                 #labels and main table
                 answers = results_this_id[results_this_id['title']=='trial_answer']
@@ -361,8 +362,8 @@ def get_main_table(experiment_folders, phase, all_trials):
                 assert(all([ellipses_df.loc[row_index,labels_list].values.any() for row_index in range(len(ellipses_df))]))
                 ellipses_df = round_dataframe(ellipses_df, {'xmin':0,'ymin':0,'xmax':0,'ymax':0
                                                                     })
-                save_csv(ellipses_df, f'built_dataset/{id}/anomaly_location_ellipses.csv')
-                # f = open(f'built_dataset/{id}/anomaly_location_ellipses.json','w')
+                save_csv(ellipses_df, f'built_dataset/main_data/{id}/anomaly_location_ellipses.csv')
+                # f = open(f'built_dataset/main_data/{id}/anomaly_location_ellipses.json','w')
                 # json_transcription=json.dump(ellipses_json, f, indent = 2)
                 # f.close()
 
@@ -375,9 +376,13 @@ def get_main_table(experiment_folders, phase, all_trials):
         main_table = main_table.sort_values(by=['id'])
     else:
         main_table = main_table.sort_values(by=['image'])
-    save_csv(main_table, f'built_dataset/metadata_phase_{phase}.csv', columns = ['id','split','eye_tracking_data_discarded','image','dicom_id','subject_id','image_size_x', 'image_size_y'] + labels_list)
+    save_csv(main_table, f'built_dataset/main_data/metadata_phase_{phase}.csv', columns = ['id','split','eye_tracking_data_discarded','image','dicom_id','subject_id','image_size_x', 'image_size_y'] + labels_list)
     access_time = time.time()
-    pathlist = list(Path('./built_dataset/').glob('**/*')) + list(Path('./built_dataset/').glob('**'))
+    pathlist = list(Path('./built_dataset/main_data/').glob('**/*')) + list(Path('./built_dataset/main_data/').glob('**'))
+    print(len(pathlist))
+    for path_to_file in pathlist:
+        os.utime(path_to_file, (access_time, access_time))
+    pathlist = list(Path('./built_dataset/gaze_data/').glob('**/*')) + list(Path('./built_dataset/').glob('**'))
     print(len(pathlist))
     for path_to_file in pathlist:
         os.utime(path_to_file, (access_time, access_time))

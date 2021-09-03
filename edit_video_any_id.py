@@ -173,7 +173,7 @@ def stretch_audio(audio, filepath, stretch_constant):
     return AudioSegment.from_file(filepath, format="wav")
 
 def main():
-    et_dataset_location = 'built_dataset'
+    et_dataset_location = 'built_dataset/main_data/'
     mimic_dataset_location = 'datasets/mimic/'
     id = 'P102R230229'
     table_et_pt1 = pd.read_csv(f'{et_dataset_location}/{id}/fixations.csv')

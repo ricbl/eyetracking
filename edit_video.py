@@ -10,17 +10,21 @@ from PIL import Image,ImageDraw
 from pydub import AudioSegment
 import json
 import pyttsx3
+import librosa
+import pyrubberband
+import soundfile as sf
+from skimage.transform import resize
+from skimage.util import img_as_ubyte
 
 fps = 30.
 audio_stephen = True
-scale_video = 0.25
+scale_video = 0.175
 
 def clean(get_frame, t):
     frame_t = t
     while frame_t>=0:
         calculated_frame = get_frame(frame_t)
         frame = calculated_frame['frame']
-        print('oi1')
         all_black = calculated_frame['all_black']
         all_white = calculated_frame['all_white']
         all_green = calculated_frame['all_green']
@@ -42,6 +46,7 @@ def scroll(get_frame, t,table_et, delay):
     fixations = fixations[t>=(fixations['time_start_linux']-delay)]
     if len(fixations)>0:
         frame = draw_circle(frame,scale_video*fixations['position_x'].values[0], scale_video*fixations['position_y'].values[0], scale_video*fixations['angular_resolution_x'].values[0],scale_video*fixations['angular_resolution_y'].values[0], (255,0,0))
+    
     samples = table_et[table_et['type']=='sample']
     # print((abs(samples['time_start_linux']-delay-t)).min())
     samples = samples.iloc[abs(samples['time_start_linux']-delay-t).argsort()[:2]]
@@ -156,10 +161,11 @@ def ASC2CSV(fname):
 
 import copy
 def fl(clip, fun,filter_bad_frames):
+    calculated_frames = []
+    i = 0
     print(len(list(clip.iter_frames())))
-
-    def my_get_frame(t):
-        frame = clip.get_frame(t)
+    for frame in clip.iter_frames():
+        i+=1
         if filter_bad_frames:
             top_row = (frame[0,...,2]>=60).sum()
             bottom_row = (frame[0,...,2]>=60).sum()
@@ -174,11 +180,24 @@ def fl(clip, fun,filter_bad_frames):
             all_black = 0
             all_green = 0
             all_black = 0
-        from skimage.transform import resize
+        print('oi1')
+        print(frame.shape)
+        print(frame.dtype)
+        print(frame.max())
         frame = resize(frame.copy(), (int(frame.shape[0] *scale_video), int(frame.shape[1] *scale_video)),
                            anti_aliasing=True)
-        calculated_frames = {'frame':frame, 'all_black':all_black,'all_green':all_green,'all_white':all_white,'top_row':top_row,'bottom_row':bottom_row}
-        return calculated_frames
+        frame = img_as_ubyte(frame)
+        # frame = frame.astype(np.uint8)
+        print(frame.shape)
+        print(frame.dtype)
+        print(frame.max())
+        calculated_frames.append({'frame':frame, 'all_black':all_black,'all_green':all_green,'all_white':all_white,'top_row':top_row,'bottom_row':bottom_row})
+    
+    def my_get_frame(t):
+        index = round(clip.fps*t)
+        if index>=len(calculated_frames):
+            index -= 1
+        return calculated_frames[index]
     
     clip = clip.set_make_frame(lambda t: fun(my_get_frame, t))
     return clip
@@ -189,28 +208,28 @@ def trim_audio(path_to_wav, start_trim, end_trim):
     trimmed_sound = sound[start_trim*1000:duration-end_trim*1000]
     trimmed_sound.export(path_to_wav, format="wav")
 
-if audio_stephen:
-    class SaveTTSFile:
-        def __init__(self, filename):
-            self.engine = pyttsx3.init()
-            self.filename = filename
 
-        def start(self,text, start,end):
-            self.engine.setProperty('rate', 60/(end-start))
-            self.engine.save_to_file(text , self.filename)
-            self.engine.runAndWait()
+class SaveTTSFile:
+    def __init__(self, filename):
+        self.engine = pyttsx3.init()
+        self.filename = filename
 
-    def stretch_audio(audio, filepath, stretch_constant):
-        audio.export(filepath, format="wav")
-        y, sr = librosa.load(filepath, sr=None)
-        y_stretched = pyrubberband.time_stretch(y, sr, stretch_constant)
-        sf.write(filepath, y_stretched, sr, format='wav')
-        return AudioSegment.from_file(filepath, format="wav")
+    def start(self,text, start,end):
+        self.engine.setProperty('rate', 60/(end-start))
+        self.engine.save_to_file(text , self.filename)
+        self.engine.runAndWait()
+
+def stretch_audio(audio, filepath, stretch_constant):
+    audio.export(filepath, format="wav")
+    y, sr = librosa.load(filepath, sr=None)
+    y_stretched = pyrubberband.time_stretch(y, sr, stretch_constant)
+    sf.write(filepath, y_stretched, sr, format='wav')
+    return AudioSegment.from_file(filepath, format="wav")
 
 def main():
     extensions= ['ogv','mov']
     trial = ['326','160']
-    folders = ['collected_data/video/302_20210514-143755-6691','collected_data/video/305_20210514-141912-2142']
+    folders = ['video_302_20210514-143755-6691','video_305_20210514-141912-2142']
     filter_bad_frames = [True,False]
     for index_trial in [0,1]:
         results_df = pd.read_csv(f'{folders[index_trial]}/structured_output.csv')
@@ -235,11 +254,19 @@ def main():
                             previous_end = 0
                             with open(f'{folders[index_trial]}/{trial[index_trial]}_joined.json','r') as f:
                                 table_text = json.load(f)['timestamps']
+                            with open(f'{folders[index_trial]}/{trial[index_trial]}_trim.json','r') as f:
+                                b = json.load(f)
+                            trim_value = float(b['start_trim'])/1000
                             for row in table_text:
+                                print(row[1])
+                                print(trim_value)
+                                row[1] += trim_value
+                                row[2] += trim_value
+                                print(row[1])
                                 if row[1] == row[2]:
                                     continue
                                 tts = SaveTTSFile('create_video_temp.mp3')
-                                tts.start(row[0].replace('.', 'period').replace(',','comma').replace('/', 'slash') , row['timestamp_start_word'], row['timestamp_end_word'])
+                                tts.start(row[0].replace('.', 'period').replace(',','comma').replace('/', 'slash') , row[1], row[2])
                                 del(tts)
                                 if row[1]>previous_end:
                                     full_audio += AudioSegment.silent(duration=(row[1]-previous_end)*1000)
@@ -247,7 +274,7 @@ def main():
                                 print(row[1])
                                 assert(abs(full_audio.duration_seconds - row[1])<0.002)
                                 word_audio = AudioSegment.from_file('create_video_temp.mp3', format="mp3")
-                                word_audio = stretch_audio(word_audio, 'create_video_temp.mp3', word_audio.duration_seconds/(row['timestamp_end_word'] - row['timestamp_start_word']))
+                                word_audio = stretch_audio(word_audio, 'create_video_temp.mp3', word_audio.duration_seconds/(row[2] - row[1]))
                                 full_audio += word_audio
                                 assert(abs(full_audio.duration_seconds - row[2])<0.002)
                                 previous_end = row[2]
@@ -256,18 +283,18 @@ def main():
                         else:
                             audio_background = mpe.AudioFileClip(f'{folders[index_trial]}/{trial[index_trial]}.wav')
                             # delay_audio = round(delay_audio*my_clip.fps)/my_clip.fps
-                            if delay_audio>0:
-                                null_audio = mpe.AudioClip(lambda t: 0, duration= delay_audio)
-                                audio_background = mpe.concatenate_audioclips([null_audio,audio_background])
-                                delay_audio = 0
-                            delay_end_video = my_clip.duration - audio_background.duration
-                            if delay_end_video>0:
-                                 null_audio = mpe.AudioClip(lambda t: 0, duration= delay_end_video)
-                                 audio_background = mpe.concatenate_audioclips([audio_background, null_audio])
-                                 delay_end_video = 0
-                            audio_background.write_audiofile('temp_crop_audio.wav')
-                            trim_audio('temp_crop_audio.wav', -delay_audio, -delay_end_video)
-                            audio_background = mpe.AudioFileClip('temp_crop_audio.wav')
+                        if delay_audio>0:
+                            null_audio = mpe.AudioClip(lambda t: 0, duration= delay_audio)
+                            audio_background = mpe.concatenate_audioclips([null_audio,audio_background])
+                            delay_audio = 0
+                        delay_end_video = my_clip.duration - audio_background.duration
+                        if delay_end_video>0:
+                             null_audio = mpe.AudioClip(lambda t: 0, duration= delay_end_video)
+                             audio_background = mpe.concatenate_audioclips([audio_background, null_audio])
+                             delay_end_video = 0
+                        audio_background.write_audiofile('temp_crop_audio.wav')
+                        trim_audio('temp_crop_audio.wav', -delay_audio, -delay_end_video)
+                        audio_background = mpe.AudioFileClip('temp_crop_audio.wav')
                         
                     else:
                         if screen==4:

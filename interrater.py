@@ -7,13 +7,20 @@ from nltk import agreement
 import csv
 from sklearn.metrics import roc_auc_score, confusion_matrix
 from statsmodels.stats import inter_rater
+import math
 
-dataset_location = 'built_dataset'
+dataset_location = 'built_dataset/main_data/'
 
 eng = []
 import shapely
 import shapely.geometry as geometry
-def create_ellipse(rect):
+def create_ellipse(coords_box_):
+    coords_box = []
+    coords_box.append((coords_box_[0]+coords_box_[2])/2)
+    coords_box.append((coords_box_[1]+coords_box_[3])/2)
+    coords_box.append(abs(coords_box_[0]-coords_box_[2])/2)
+    coords_box.append(abs(coords_box_[1]-coords_box_[3])/2)
+    rect = coords_box
     center = (rect[0],rect[1])
     axis = (rect[2],rect[3])
     point = geometry.point.Point(center).buffer(1)
@@ -45,6 +52,16 @@ def convert_to_stats_table(array, total_raters):
     array_to_return[:,1] = total_raters - array.sum(axis = 1)
     return array_to_return
 
+def fleiss_kappa_standard_error(table):
+    n_raters = np.sum(table[0,:])
+    n_categories = table.shape[1]
+    n_cases = table.shape[0]
+    p = np.sum(table, axis = 0)/n_raters/n_cases
+    sum_p2 = np.sum(p**2)
+    sum_p3 = np.sum(p**3)
+    var_k = 2/n_cases/n_raters/(n_raters-1)*(sum_p2-(2*n_raters-3)*sum_p2**2+2*(n_raters-2)*sum_p3)/(1-sum_p2)**2
+    return math.sqrt(var_k)
+
 def analyze_interrater_reliability(phase, labels):
     results_csv = pd.DataFrame()
     labels_list = labels
@@ -71,7 +88,11 @@ def analyze_interrater_reliability(phase, labels):
         
         # numpy.savetxt(f"rating_{labels[k].replace('/','_').replace(' ','_').lower()}_phase_{phase}.csv", convert_to_stats_table(array_to_use[:,:,k], 5), delimiter=",")
         # numpy.savetxt(f"rating_2_{labels[k].replace('/','_').replace(' ','_').lower()}_phase_{phase}.csv", array_to_use[:,:,k], delimiter=",")
-        value = inter_rater.fleiss_kappa(convert_to_stats_table(array_to_use[:,:,k], 5), method='fleiss')
+        table_answers = convert_to_stats_table(array_to_use[:,:,k], 5)
+        value = inter_rater.fleiss_kappa(table_answers, method='fleiss')
+        
+        se = fleiss_kappa_standard_error(table_answers)
+        
         
         # formatted_codes = [[j,i,array_to_use[j,i,k]] for i in range(array_to_use.shape[1]) for j in range(array_to_use.shape[0])]
         # 
@@ -86,6 +107,8 @@ def analyze_interrater_reliability(phase, labels):
         # print(value)
         # 1/0
         new_row = {'label':labels_list[k], 'title':'Fleiss Kappa', 'value':value}
+        results_csv = results_csv.append(new_row, ignore_index=True)
+        new_row = {'label':labels_list[k], 'title':'Fleiss Kappa standard error', 'value':se}
         results_csv = results_csv.append(new_row, ignore_index=True)
     
         for trial_index,_ in enumerate(all_images):
@@ -226,7 +249,7 @@ def calculate_per_user(name, results_csv, formatted_codes, formatted_codes_other
     
     return results_csv
 
-# labels = sorted(['Atelectasis','Consolidation','Pulmonary edema','Airway wall thickening','Groundglass opacity','Mass','Nodule','Pneumothorax','Pleural effusion','Pleural thickening','Emphysema','Fibrosis','Wide mediastinum','Enlarged cardiac silhouette','Support devices','Fracture','Quality issue'])
-# analyze_interrater_reliability(1, labels)
+labels = sorted(['Atelectasis','Consolidation','Pulmonary edema','Airway wall thickening','Groundglass opacity','Mass','Nodule','Pneumothorax','Pleural effusion','Pleural thickening','Emphysema','Fibrosis','Wide mediastinum','Enlarged cardiac silhouette','Support devices','Fracture','Quality issue'])
+analyze_interrater_reliability(1, labels)
 labels = sorted(['Support devices', 'Abnormal mediastinal contour', 'Enlarged cardiac silhouette', 'Enlarged hilum', 'Hiatal hernia', 'Pneumothorax', 'Pleural abnormality', 'Consolidation','Groundglass opacity','Atelectasis', 'Lung nodule or mass', 'Pulmonary edema', 'High lung volume / emphysema','Interstitial lung disease', 'Acute fracture'])
 analyze_interrater_reliability(2, labels)
