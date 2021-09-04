@@ -7,7 +7,7 @@ def main():
     parser.add_argument('--file_name', type=str, nargs='?',
                         help='name of the edf file, without the .EDF extension.')
     args = parser.parse_args()
-    bashCommand = "edf2asc -res -y -e " + args.file_name
+    bashCommand = "edf2asc -res -y " + args.file_name
     process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
     output, error = process.communicate()
 

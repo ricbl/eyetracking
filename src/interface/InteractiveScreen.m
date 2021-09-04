@@ -79,7 +79,7 @@ classdef InteractiveScreen < InteractiveCollectionSameDepth
                 s.previous_secs_for_video = GetSecs;
             end
             if s.mainWindow.record_video==2
-                [~,~] = system(['../../run_recording_screen.sh --fps 30 -o ' filename_video '.ogv --overwrite --no-sound > ' filename_video '.txt']);
+                [~,~] = system(['../scripts/run_recording_screen.sh --fps 30 -o ' filename_video '.ogv --overwrite --no-sound > ' filename_video '.txt']);
                 s.structured_output.add_message('MainWindow', 'start_video_recording');
             end
             previous_get_secs = GetSecs;

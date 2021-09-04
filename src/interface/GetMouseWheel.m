@@ -39,6 +39,10 @@ function wheelDelta = GetMouseWheel()
 
 % Cache the detected index of the first "real" wheel mouse to allow for lower
 % execution times:
+
+%https://github.com/kleinerm/Psychtoolbox-3/blob/master/Psychtoolbox/PsychBasic/GetMouseWheel.m
+% MIT License
+
 persistent oldWheelAbsolute;
 persistent wheelMouseIndex;
 persistent index_valinfo;

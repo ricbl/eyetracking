@@ -182,6 +182,9 @@ function [ch, when] = GetCharNoWait(getExtendedData, getRawCode)
 %     shiftKey: 0
 % 
 
+% from https://github.com/Psychtoolbox-3/Psychtoolbox-3/blob/master/Psychtoolbox/PsychBasic/GetChar.m
+% MIT License
+
 global OSX_JAVA_GETCHAR;
 % If no command line argument was passed we'll assume that the user only
 % wants to get character data and timing/modifier data.
