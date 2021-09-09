@@ -1,4 +1,8 @@
+#auxiliary script with a function that trascribes an audio and gives it a core by comparing it to a ground truth
+
 import difflib
+import sys
+sys.path.insert(1, '../interface_src/scripts/')
 from convert_audio_to_text_ibm import transcribe_function as tf
 import os
 import re
@@ -31,11 +35,11 @@ def get_score(ground_truth_location, audio_location, transcription_function):
     return sum(differences)/len(differences)
 
 def main():
-    ground_truth_location = '/home/eye/Documents/projects/eyetracking/ibm/Train-Custom-Speech-Model/data/val_documents/'
+    ground_truth_location = '../ibm/val_documents/'
     transcription_function = lambda entry: tf(entry, '../../credentials/ibm_credentials_sci.json')[0]
-    # path_with_txt = '/home/eye/Documents/projects/eyetracking/ibm/Train-Custom-Speech-Model/data/val_audio/language_only/'
+    # path_with_txt = '/home/eye/Documents/projects/eyetracking/ibm/val_audio/language_only/'
     #transcription_function = lambda x: get_transcription_from_txt(x, path_with_txt)
-    audio_location = '/home/eye/Documents/projects/eyetracking/ibm/Train-Custom-Speech-Model/data/val_audio/'
+    audio_location = '../ibm/val_audio/'
     get_score(ground_truth_location, audio_location, transcription_function)
 
 if __name__ == '__main__':

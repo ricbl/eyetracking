@@ -1,3 +1,6 @@
+# This script was used to generate the video included in the paper as a supplementary file
+# the data used to generate the video was not part of the dataset and is just an example of the use of the interface
+
 import moviepy.editor as mpe
 from collections import defaultdict
 import re
@@ -17,7 +20,8 @@ from skimage.transform import resize
 from skimage.util import img_as_ubyte
 
 fps = 30.
-audio_stephen = True
+use_digital_audio = True
+# reducing the resolution of the video so that it is less than the 10 MB required for Supplementary Files
 scale_video = 0.175
 
 def clean(get_frame, t):
@@ -30,9 +34,11 @@ def clean(get_frame, t):
         all_green = calculated_frame['all_green']
         top_row = calculated_frame['top_row']
         bottom_row = calculated_frame['bottom_row']
+        # if any of these conditions are not met, the frame is extremly likely to be a bugged one where capture failed,
         if all_white<50000 and all_green<20000 and all_black<7000000 and top_row<1500 and bottom_row<1500:
             break
         else:
+            # if bad frame, go back to previous frame (keep doing this until a good frame is found)
             frame_t -= 1/fps
     return frame
 
@@ -48,20 +54,27 @@ def scroll(get_frame, t,table_et, delay):
         frame = draw_circle(frame,scale_video*fixations['position_x'].values[0], scale_video*fixations['position_y'].values[0], scale_video*fixations['angular_resolution_x'].values[0],scale_video*fixations['angular_resolution_y'].values[0], (255,0,0))
     
     samples = table_et[table_et['type']=='sample']
-    # print((abs(samples['time_start_linux']-delay-t)).min())
+    
+    #get gaze sampled closest to the current video time
     samples = samples.iloc[abs(samples['time_start_linux']-delay-t).argsort()[:2]]
     print(len(samples))
-    # samples = samples[abs(samples['time_start_linux'])==(abs(samples['time_start_linux']-delay-t)).min()]
     frame = draw_circle(frame,scale_video*samples['position_x'].values[0], scale_video*samples['position_y'].values[0], scale_video*samples['angular_resolution_x'].values[0]/5,scale_video*samples['angular_resolution_y'].values[0]/5, (0,255,255))
     return frame
 
 def draw_circle(image, x,y,radius_x,radius_y,color):
+    #get a plain foregroun layer filled with the desired color for the circle
     foreground = Image.new('RGB', (image.shape[1], image.shape[0]), color)
-    background = Image.fromarray(image)
+    
+    background = Image.fromarray(image[:,:,:])
+    
+    # draw a circle in the alpha layer, withalpha = 200/255
     mask = Image.new('L', (image.shape[1], image.shape[0]), 255)
     draw = ImageDraw.Draw(mask)
     draw.ellipse((x-radius_x,y-radius_y, x+radius_x, y+radius_y), fill=(200))
+    
+    #draw foreground on background respecting the alpha layer
     result = Image.composite(background, foreground, mask)
+    
     return np.array(result)
 
 def time_edf_to_time_linux_scale(time_edf):
@@ -77,6 +90,7 @@ def is_number(string):
     except ValueError:
         return False
 
+#function to read the fixation information from the asc eye-tracking datafile
 def ASC2CSV(fname):
     state_edf = 'not_started'
     filepath = ''
@@ -167,6 +181,7 @@ def fl(clip, fun,filter_bad_frames):
     for frame in clip.iter_frames():
         i+=1
         if filter_bad_frames:
+            #calculate number of pixels of different colors, in different positions, used to later filter frames that wree badly recorded
             top_row = (frame[0,...,2]>=60).sum()
             bottom_row = (frame[0,...,2]>=60).sum()
             all_white = (frame[...,1]>=249).sum()
@@ -180,21 +195,19 @@ def fl(clip, fun,filter_bad_frames):
             all_black = 0
             all_green = 0
             all_black = 0
-        print('oi1')
-        print(frame.shape)
-        print(frame.dtype)
-        print(frame.max())
+        
+        
         frame = resize(frame.copy(), (int(frame.shape[0] *scale_video), int(frame.shape[1] *scale_video)),
                            anti_aliasing=True)
         frame = img_as_ubyte(frame)
         # frame = frame.astype(np.uint8)
-        print(frame.shape)
-        print(frame.dtype)
-        print(frame.max())
+        
         calculated_frames.append({'frame':frame, 'all_black':all_black,'all_green':all_green,'all_white':all_white,'top_row':top_row,'bottom_row':bottom_row})
     
     def my_get_frame(t):
         index = round(clip.fps*t)
+        
+        #sometimes there is a 1 frame mismatch by the end ofthe video
         if index>=len(calculated_frames):
             index -= 1
         return calculated_frames[index]
@@ -208,7 +221,7 @@ def trim_audio(path_to_wav, start_trim, end_trim):
     trimmed_sound = sound[start_trim*1000:duration-end_trim*1000]
     trimmed_sound.export(path_to_wav, format="wav")
 
-
+#text-to-speech helper
 class SaveTTSFile:
     def __init__(self, filename):
         self.engine = pyttsx3.init()
@@ -219,6 +232,7 @@ class SaveTTSFile:
         self.engine.save_to_file(text , self.filename)
         self.engine.runAndWait()
 
+#change the audio speed to match the speed used by the radiolgist
 def stretch_audio(audio, filepath, stretch_constant):
     audio.export(filepath, format="wav")
     y, sr = librosa.load(filepath, sr=None)
@@ -229,7 +243,7 @@ def stretch_audio(audio, filepath, stretch_constant):
 def main():
     extensions= ['ogv','mov']
     trial = ['326','160']
-    folders = ['video_302_20210514-143755-6691','video_305_20210514-141912-2142']
+    folders = ['../video_302_20210514-143755-6691','../video_305_20210514-141912-2142']
     filter_bad_frames = [True,False]
     for index_trial in [0,1]:
         results_df = pd.read_csv(f'{folders[index_trial]}/structured_output.csv')
@@ -244,12 +258,16 @@ def main():
                 my_clip = mpe.VideoFileClip(video_filename)
                 if screen in [2,4,7,9]:
                     start_video = results_df_this_screen[results_df_this_screen['title']=='start_video_recording']['timestamp'].values[0]*24*60*60
+                    
+                    #the only screen with audio is screen 2
                     if screen==2:
                         table_et_2 = table_et_pt1.copy()
                         start_video_2 = start_video
                         my_clip = fl(my_clip, lambda get_frame, t: scroll(get_frame, t,table_et_2, start_video_2), filter_bad_frames[index_trial])
                         delay_audio = results_df_this_screen[results_df_this_screen['title']=='start_audio_recording']['timestamp'].values[0]*24*60*60-start_video
-                        if audio_stephen:
+                        
+                        #generate the audio from the timestamped transcription
+                        if use_digital_audio:
                             full_audio = AudioSegment.empty()
                             previous_end = 0
                             with open(f'{folders[index_trial]}/{trial[index_trial]}_joined.json','r') as f:
@@ -260,26 +278,37 @@ def main():
                             for row in table_text:
                                 print(row[1])
                                 print(trim_value)
+                                
+                                #row[1] is the timestamp for the start of the word, and row[2] the timestamp for the end of the word
                                 row[1] += trim_value
                                 row[2] += trim_value
                                 print(row[1])
+                                
+                                # if start and end of the word are at the same time, it was not captured by the original transcription, so we do not use it in the audio, only in subtitle
                                 if row[1] == row[2]:
                                     continue
-                                tts = SaveTTSFile('create_video_temp.mp3')
+                                
+                                # text to speech
+                                tts = SaveTTSFile('create_video_temp.wav')
                                 tts.start(row[0].replace('.', 'period').replace(',','comma').replace('/', 'slash') , row[1], row[2])
                                 del(tts)
+                                
+                                # add silence between words if they did not end/start at the same time
                                 if row[1]>previous_end:
                                     full_audio += AudioSegment.silent(duration=(row[1]-previous_end)*1000)
                                 print(full_audio.duration_seconds)
                                 print(row[1])
                                 assert(abs(full_audio.duration_seconds - row[1])<0.002)
-                                word_audio = AudioSegment.from_file('create_video_temp.mp3', format="mp3")
-                                word_audio = stretch_audio(word_audio, 'create_video_temp.mp3', word_audio.duration_seconds/(row[2] - row[1]))
+                                
+                                #change the duration of the word sound to the duration it took for the radiologist to say it
+                                word_audio = AudioSegment.from_file('create_video_temp.wav', format="wav")
+                                word_audio = stretch_audio(word_audio, 'create_video_temp.wav', word_audio.duration_seconds/(row[2] - row[1]))
+                                
                                 full_audio += word_audio
                                 assert(abs(full_audio.duration_seconds - row[2])<0.002)
                                 previous_end = row[2]
-                            full_audio.export("create_video_temp.mp3", format="mp3")
-                            audio_background = mpe.AudioFileClip('create_video_temp.mp3')
+                            full_audio.export("create_video_temp.wav", format="wav")
+                            audio_background = mpe.AudioFileClip('create_video_temp.wav')
                         else:
                             audio_background = mpe.AudioFileClip(f'{folders[index_trial]}/{trial[index_trial]}.wav')
                             # delay_audio = round(delay_audio*my_clip.fps)/my_clip.fps

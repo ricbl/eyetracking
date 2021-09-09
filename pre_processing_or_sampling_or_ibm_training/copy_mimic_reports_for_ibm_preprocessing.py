@@ -1,3 +1,5 @@
+# generates a list of senteces from the findings or impressions sections of the mimic-cxr reports that do not make reference to previous studies
+
 import os
 from shutil import copyfile
 import re
@@ -19,8 +21,8 @@ list_of_unwanted_expressions = ['unchanged','prior','previous','previously',
 'compared with the next','next preceding similar study',
 'preceding similar study','preceding', 'still', 'questioned', 'recommend']
 
-folder_reports = '/home/eye/Downloads/reports/a/files/'
-dst = '/home/eye/Documents/projects/eyetracking/ibm/Train-Custom-Speech-Model/data/mimic_documents/'
+folder_reports = '../datasets/mimic/reports/files/'
+dst = '../ibm/'
 
 def multiple_replace(list_of_unwanted_expressions, text):
   regex = re.compile("(%s)" % (r"\b"+r"\b|\b".join(map(re.escape, list_of_unwanted_expressions))+r"\b"))

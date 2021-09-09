@@ -1,4 +1,5 @@
 function download_mimic_files_from_list()
+    % script to download only the DICOMs from the MIMIC-CXR dataset that were sampled to be used during the experiments
     struct_folders = dir('../../datasets/mimic/image_lists/*.txt');
     folder_names = cell(length(struct_folders),1);
     [folder_names{:}] = struct_folders.name;

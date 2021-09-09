@@ -1,4 +1,5 @@
-# -*- coding: utf-8 -*-
+# script used to create models on IBM speech to text trained with previous data collection sessions
+
 import requests
 import json
 import codecs
@@ -14,7 +15,7 @@ from shutil import copyfile
 import time
 
 def get_credentials():
-    ibm_credentials = '../../credentials/ibm_credentials_sci.json'
+    ibm_credentials = '../credentials/ibm_credentials_sci.json'
     with open(ibm_credentials) as json_file:
         credentials = json.load(json_file)
     return credentials['STT_ENDPOINT'], credentials['USERNAME'], credentials['PASSWORD']
@@ -32,7 +33,7 @@ def create_language_model(model_name):
     r = requests.post(uri, auth=(username, password), verify=False, headers=headers, data=jsonObject)
     assert(r.status_code == 201)
     return_text = json.loads(r.text)
-    with open("../../ibm_models_infos/language_model_"+model_name+"_"+time.strftime("%Y%m%d-%H%M%S")+".json", "w") as outfile: 
+    with open("../ibm_models_infos/language_model_"+model_name+"_"+time.strftime("%Y%m%d-%H%M%S")+".json", "w") as outfile: 
         json.dump({'customization_id':return_text['customization_id'],'name':model_name}, outfile) 
     
     return return_text['customization_id']
@@ -70,7 +71,7 @@ def add_corpus(corpus_file, language_id, model_name):
 
     uri = endpoint + "/v1/customizations/"+language_id+"/words?sort=count"
     r = requests.get(uri, auth=(username,password), verify=False, headers=headers)
-    file = codecs.open('../../ibm_models_infos/'+model_name+'_'+language_id+'_'+corpus_name+".OOVs.corpus", 'wb', 'utf-8')
+    file = codecs.open('../ibm_models_infos/'+model_name+'_'+language_id+'_'+corpus_name+".OOVs.corpus", 'wb', 'utf-8')
     file.write(r.text)
 
 def train_language_model(language_id):
@@ -108,13 +109,13 @@ def create_acoustic_model(model_name):
     r = requests.post(uri, auth=(username, password), verify=False, headers=headers, data=jsonObject)
     assert(r.status_code==201)
     return_text = json.loads(r.text)
-    with open("../../ibm_models_infos/acoustic_model_"+model_name+"_"+time.strftime("%Y%m%d-%H%M%S")+".json", "w") as outfile: 
+    with open("../ibm_models_infos/acoustic_model_"+model_name+"_"+time.strftime("%Y%m%d-%H%M%S")+".json", "w") as outfile: 
         json.dump({'customization_id':return_text['customization_id'],'name':model_name}, outfile) 
     return return_text['customization_id']
 
-def add_audio(audio_filename, acoustic_id, radiologist):
+def add_audio(audio_filename, acoustic_id):
     endpoint, username, password = get_credentials()
-    audio_name = os.path.basename(audio_filename).split('.')[0] + radiologist
+    audio_name = os.path.basename(audio_filename).split('.')[0]
     
     headers = {'Content-Type' : "application/json"}
     uri = endpoint + "/v1/acoustic_customizations/" + acoustic_id + "/audio/"+ audio_name
@@ -161,48 +162,44 @@ def train_acoustic_model(acoustic_id, language_id):
         time_to_run += 10
 
 def sed_to_corpora(folder_documents, corpus_name):
-    bashCommand = "sed -f ../../ibm/Train-Custom-Speech-Model/data/fixup_invert_period.sed " + folder_documents + "/*.txt > ../../ibm_models_infos/" + corpus_name
+    bashCommand = "sed -f ./fixup_invert_period.sed " + folder_documents + " > ../ibm_models_infos/" + corpus_name
     os.system(bashCommand)
 
-def complete_train_model(test_name, use_mimic, use_transcriptions, radiologists, phase_suffixes = ['']):
+def complete_train_model(test_name, use_mimic, use_transcriptions):
     print(test_name)
     language_id = create_language_model(test_name)
     print(language_id)
     if use_mimic:
-        add_corpus('../../ibm_models_infos/corpus_mimic-invert_period.txt', language_id, test_name)
+        add_corpus('../ibm_models_infos/corpus_mimic-invert_period.txt', language_id, test_name)
     if use_transcriptions:
-        for phase_suffix in phase_suffixes:
-            for radiologist in radiologists:
-                add_corpus('../../ibm_models_infos/corpus_'+radiologist+'-invert_period'+phase_suffix+'.txt', language_id, test_name)
+        add_corpus('../ibm_models_infos/corpus_invert_period.txt', language_id, test_name)
     train_language_model(language_id)
     acoustic_id = create_acoustic_model(test_name)
     print(acoustic_id)
-    for phase_suffix in phase_suffixes:
-        for radiologist in radiologists:
-            audiofolder = '../../ibm/Train-Custom-Speech-Model/data/' + radiologist + '_trainaudio' + phase_suffix
-            audiofiles = os.listdir(audiofolder)
-            for audioindex, filename in enumerate(audiofiles):
-                print('adding audio ' +str (audioindex))
-                add_audio(audiofolder+'/'+filename, acoustic_id, radiologist)
+    audiofolder = '../ibm/trainaudio'
+    audiofiles = os.listdir(audiofolder)
+    for audioindex, filename in enumerate(audiofiles):
+        print('adding audio ' +str (audioindex))
+        add_audio(audiofolder+'/'+filename, acoustic_id)
     train_acoustic_model(acoustic_id, language_id)
     endpoint, username, password = get_credentials()
-    with open('../../credentials/ibm_credentials_sci_'+ test_name +'.json', "w") as outfile: 
+    with open('../credentials/ibm_credentials_sci_'+ test_name +'.json', "w") as outfile: 
         json.dump({'USERNAME':username,'PASSWORD':password, 'STT_ENDPOINT': endpoint, "LANGUAGE_ID":language_id , "ACOUSTIC_ID":acoustic_id}, outfile) 
 
 def test_model(test_name,radiologist, use_txt, remove_noise_level, sensitivity):
     print('test')
     print(test_name)
     print(radiologist)
-    ground_truth_location = '../../ibm/Train-Custom-Speech-Model/data/' + radiologist + '_valtxt/'
-    audio_location = '../../ibm/Train-Custom-Speech-Model/data/' + radiologist + '_valaudio/'
+    ground_truth_location = '../ibm/' + radiologist + '_valtxt/'
+    audio_location = '../ibm/' + radiologist + '_valaudio/'
     if use_txt:
         transcription_function = lambda x: get_transcription_from_txt(x, audio_location, test_name+'_'+radiologist + str(remove_noise_level) + '_' + str(sensitivity), remove_noise_level, sensitivity)
     else:
-        credentials_json = '../../credentials/ibm_credentials_sci_'+ test_name +'.json'
+        credentials_json = '../credentials/ibm_credentials_sci_'+ test_name +'.json'
         transcription_function = lambda entry: tf(entry, credentials_json, test_name, remove_noise_level, sensitivity )[0]
     score = get_score(ground_truth_location, audio_location, transcription_function)
     print(score)
-    with open("../../ibm_models_infos/score_"+radiologist+"_"+test_name+"_"+str(remove_noise_level) + '_' + str(sensitivity)+time.strftime("%Y%m%d-%H%M%S")+".json", "w") as outfile: 
+    with open("../ibm_models_infos/score_"+radiologist+"_"+test_name+"_"+str(remove_noise_level) + '_' + str(sensitivity)+time.strftime("%Y%m%d-%H%M%S")+".json", "w") as outfile: 
         json.dump({'test_name':test_name,'score':score}, outfile) 
     return score
 
@@ -267,30 +264,26 @@ def main():
     # 
     # print(list_language_models())
     # print(list_acoustic_models())
-    # data_folders = [    'user1_203_20201216-141859-3506', 
-    # 'user1_203_20201216-142259-5921', 
-    # 'user1_203_20201218-142722-8332', 
-    # 'user1_203_20201223-140239-9152', 
-    # 'user2_203_20201201-092234-9617', 
-    # 'user3_203_20201210-101303-6691',
-    # 'user3_203_20201217-083511-9152', 
-    # 'user4_203_20201222-150420-9152', 
-    # 'user4_203_20210104-130049-9152',
-    # 'user5_203_20201113', ]
-    # for data_folder in data_folders:
-    #     user = data_folder.split('_')[0]
-    #     for key,value in {'train':range(1,46),'val':range(46,61)}.items():
-    #         for trial in value:
-    #             if os.path.exists('../../anonymized_collected_data/'+data_folder +'/'+str(trial)+'.wav'):
-    #                 copyfile('../../anonymized_collected_data/'+data_folder +'/'+str(trial)+'.wav', '/../../ibm/Train-Custom-Speech-Model/data/' + user + '_'+key+'audio/'+str(trial)+'.wav')
-    #         # convert_structured_output('../../anonymized_collected_data/'+data_folder +'/structured_output.csv', '../../ibm/Train-Custom-Speech-Model/data/' + user + '_'+key+'txt', value)
-    # 1/0
-    # for radiologist in ['user1', 'user2', 'user3', 'user4', 'user5']:
-    #     sed_to_corpora('../../ibm/Train-Custom-Speech-Model/data/' + radiologist + '_traintxt_phase_2', 'corpus_'+radiologist+'-invert_period'+'_phase_2'+'.txt')
-    #     sed_to_corpora('../../ibm/Train-Custom-Speech-Model/data/' + radiologist + '_traintxt', 'corpus_'+radiologist+'-invert_period.txt')
-    # sed_to_corpora('../../ibm/Train-Custom-Speech-Model/data/', 'corpus_mimic-invert_period.txt')
-    # 1/0
-    complete_train_model('all_radiologists_mt_phase_2', False, True, radiologists = ['user1', 'user2', 'user3', 'user4', 'user5'], phase_suffixes = ['','_phase_2'])
+    data_folders = [    'user1_203_20201216-141859-3506', 
+    'user1_203_20201216-142259-5921', 
+    'user1_203_20201218-142722-8332', 
+    'user1_203_20201223-140239-9152', 
+    'user2_203_20201201-092234-9617', 
+    'user3_203_20201210-101303-6691',
+    'user3_203_20201217-083511-9152', 
+    'user4_203_20201222-150420-9152', 
+    'user4_203_20210104-130049-9152',
+    'user5_203_20201113', ]
+    for data_folder in data_folders:
+        user = data_folder.split('_')[0
+        #trials 1 to 46 are for training, the rest for validation
+        for trial in range(1,46):
+            if os.path.exists('../anonymized_collected_data/'+data_folder +'/'+str(trial)+'.wav'):
+                copyfile('../anonymized_collected_data/'+data_folder +'/'+str(trial)+'.wav', '../ibm/trainaudio/'+user + '_' + str(trial)+'.wav')
+        convert_structured_output('../anonymized_collected_data/'+data_folder +'/structured_output.csv', '../ibm/traintxt/' + user + '.txt', value)
+    sed_to_corpora('../ibm/traintxt/*.txt', 'corpus_invert_period.txt')
+    sed_to_corpora('../ibm/vocab_mimic.txt', 'corpus_mimic-invert_period.txt')
+    complete_train_model('all_radiologists_mt_test', False, True)
     scores['all_radiologists_mt_phase_2_user5'] = test_model('all_radiologists_mt_phase_2','user5', False, 0.1, 0.9)
     scores['all_radiologists_mt_phase_2_user1'] = test_model('all_radiologists_mt_phase_2','user1', False, 0.1, 0.9)
     scores['all_radiologists_mt_phase_2_user3'] = test_model('all_radiologists_mt_phase_2','user3', False, 0.1, 0.9)

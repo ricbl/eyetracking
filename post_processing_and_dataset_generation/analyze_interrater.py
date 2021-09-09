@@ -1,3 +1,5 @@
+# generates a table summarizing some of the data collected for phase 1 from all the individual folders of data collected in phase 1
+
 import pandas as pd
 from collections import defaultdict, OrderedDict
 import numpy
@@ -106,7 +108,7 @@ def get_classes_from_csv(csv_file, results_csv, user, transcriptions_csv):
             coords_chest.append(max(coords_chest_[1],coords_chest_[3]))
             all_coord_chest[trial] = coords_chest
             
-            eng.append("generate_image_from_saved_data('"+filepath+"', {["+' '.join([str(coord_value) for coord_value in coords_chest])+"]}, 0, 0, 0, 0,'./results/"+user+"/chest_box_screen_"+str(trial)+".png',0,'"+user+"',0)")
+            eng.append("generate_image_from_saved_data('../"+filepath+"', {["+' '.join([str(coord_value) for coord_value in coords_chest])+"]}, 0, 0, 0, 0,'./results/"+user+"/chest_box_screen_"+str(trial)+".png',0,'"+user+"',0)")
             # eng.generate_image_from_saved_data(filepath, [coords_chest], 0, 0, 0, 0,'./results/'+user+/'chest_box_screen_'+str(trial)+'.png',0, nargout=0)
             
             data_table_transcription_this_trial = get_last_saved_screen(data_table_this_trial, trial, 11)
@@ -194,7 +196,7 @@ def get_classes_from_csv(csv_file, results_csv, user, transcriptions_csv):
                         new_row = {'user':user, 'label':'', 'trial':trial, 'title':'Pair labels same box', 'value':','.join(sorted(list_labels_this_box))}
                         results_csv = results_csv.append(new_row, ignore_index=True)
                         
-            eng.append("generate_image_from_saved_data('"+filepath+"', {"+','.join([('['+' '.join([str(coord_value) for coord_value in coords_this_rect])+']') for coords_this_rect in rect_list])+"}, 1, {'"+"','".join(labels)+"'},[" + \
+            eng.append("generate_image_from_saved_data('../"+filepath+"', {"+','.join([('['+' '.join([str(coord_value) for coord_value in coords_this_rect])+']') for coords_this_rect in rect_list])+"}, 1, {'"+"','".join(labels)+"'},[" + \
                 ';'.join(['['+' '.join([str(label_matrix[ni,nj]) for nj in range(label_matrix.shape[1])])+']'  for ni in range(label_matrix.shape[0])]) +'],'+ str(from_center)+",'./results/"+user+"/bbox_screen_"+str(trial)+".png',1,'"+user+"',["+ \
                 ' '.join([str((labels_trial[label_1]!=0)*1) for label_1 in labels])+"])")
             # eng.generate_image_from_saved_data(filepath, rect_list, 1, labels, label_matrix, from_center,'./results/'+user+'/bbox_screen_'+str(trial)+'.png',1, nargout=0)
@@ -217,7 +219,7 @@ def analyze_interrater_reliability():
         # print(data_folder)
         user = data_folder.split('_')[0]
         # print(user)
-        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv('anonymized_collected_data/phase_1/'+data_folder +'/structured_output.csv', results_csv, user,'anonymized_collected_data/phase_1/phase_1_transcriptions_anon.csv')
+        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv('../anonymized_collected_data/phase_1/'+data_folder +'/structured_output.csv', results_csv, user,'../anonymized_collected_data/phase_1/phase_1_transcriptions_anon.csv')
         labels_table[user].update(answers)
         chest_table[user].update(all_coord_chest)
         box_table[user].update(all_coord_box)

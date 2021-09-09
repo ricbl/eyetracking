@@ -1,3 +1,9 @@
+# generates the table with values used in the calculation of NCC values reported in the Technical Validation > Eye-tracking data section
+# generates_heatmap should be run before this script
+# example of: 
+# - how to normalize the location of heatmaps using the chest bounding box
+# - how to compare a heatmap against abnormality ellipses.
+
 import pandas as pd
 import numpy as np
 import cv2
@@ -7,22 +13,16 @@ import os.path
 import math
 from skimage.draw import ellipse
 import os
+from dataset_locations import reflacx_dataset_location
 
 def get_ellipses_image(list_rect, im_size):
-    # print(imsize)
-    
     img_mask = np.zeros(im_size, np.uint8)
-    # print(img_mask)
     for rect in list_rect:
-        # print((rect[0]+rect[2])/2, (rect[1]+rect[3])/2, abs(rect[0]-rect[2])/2, abs(rect[1]-rect[3])/2)
         rr, cc = ellipse((rect[0]+rect[2])/2, (rect[1]+rect[3])/2, abs(rect[0]-rect[2])/2, abs(rect[1]-rect[3])/2,imsize)
-        # print(len(rr))
         img_mask[rr, cc] = 1
-    # print(np.sum(img_mask))
-    # print(img_mask)
     return np.transpose(img_mask)
 
-eyetracking_dataset_path = 'built_dataset/main_data/'
+eyetracking_dataset_path = f'{reflacx_dataset_location}/main_data/'
 
 def normalised_corr(a,v): 
     return np.mean((a-np.mean(a))*(v-np.mean(v)))/np.std(v)/np.std(a)
@@ -40,8 +40,6 @@ for phase in [1,2]:
             chest_box_table['xmin'].values[0]
             tables_boxes = tables_boxes.append({'trial':index, 'image_size_x': row['image_size_x'],'image_size_y': row['image_size_y'],'phase': phase, 'ChestBox (Rectangle) coord 0': chest_box_table['xmin'].values[0], 'ChestBox (Rectangle) coord 1': chest_box_table['ymin'].values[0], 'ChestBox (Rectangle) coord 2': chest_box_table['xmax'].values[0], 'ChestBox (Rectangle) coord 3': chest_box_table['ymax'].values[0] }, ignore_index=True)
             
-            ellipse_table = pd.read_csv(f'{eyetracking_dataset_path}/{row["id"]}/anomaly_location_ellipses.csv')
-            ellipse_table
 assert(len(tables_boxes)==525)
 
 tables_boxes = tables_boxes.groupby(['trial', 'phase']).agg({'image_size_y':['mean'], 'image_size_x':['mean'],
@@ -97,7 +95,7 @@ final_shape_average = [max_margins[3]+max_margins[1]+average_size_box_y,max_marg
 aggregated_heatmaps = np.zeros(final_shape_average).astype(np.float64)
 total_counts_views = np.zeros(final_shape_average).astype(np.float64)
 
-#for each eyetracking heatmap
+# get list of all eye-tracking heatmaps
 def sorter(item):
     return f'{int(item.split("/")[-1].split("_")[0]):04}' + item.split("/")[-1].split("_")[1]
 list_et = sorted(glob.glob( './heatmaps_phase_1/*npy'),key=sorter)+ sorted(glob.glob('./heatmaps_phase_2/*npy'),key=sorter)
@@ -109,6 +107,7 @@ pathlib.Path(folder_name).mkdir(parents=True, exist_ok=True)
 folder_name = f'./heatmaps_subtraction_2_1'
 pathlib.Path(folder_name).mkdir(parents=True, exist_ok=True) 
 
+#accumulate all the heatmaps in a single average space
 for et_path in list_et:
     #get the user, trial and phase
     this_trial = float(et_path.split('/')[-1].split('_')[0])
@@ -164,20 +163,19 @@ save_normalized_image(np.nan_to_num(average_heatmap[round(max_margins[1]-average
 save_normalized_image(np.nan_to_num(total_counts_views), folder_name + '/count.png')
 
 
+# do all heatmap comparisons
 base = []
 this_et = []
 base_table = []
 this_et_table = []
-
 for et_path in list_et:
     print(et_path)
-    # if et_path!='./heatmaps_phase_2/3_0.npy':
-    #     continue
+    
     #get the user, trial and phase
     this_trial = int(et_path.split('/')[-1].split('_')[0])
     this_phase = int(et_path.split('/')[-2].split('_')[2])
     
-    metadata_table = pd.read_csv(f'built_dataset/main_data/metadata_phase_{this_phase}.csv')
+    metadata_table = pd.read_csv(f'{reflacx_dataset_location}/main_data/metadata_phase_{this_phase}.csv')
     metadata_table = metadata_table[metadata_table['eye_tracking_data_discarded']==False]
     first_trial = int(metadata_table['id'].values[0][2:4])
     
@@ -190,11 +188,11 @@ for et_path in list_et:
     this_row = tables_boxes[(tables_boxes['trial']==this_trial) & (tables_boxes['phase']==this_phase)]
     assert(len(this_row)==1)
     
+    #find coordinates of common space that correspond to the limits of the current image
     size_box_x = this_row['ChestBox (Rectangle) coord 2'].values[0] - this_row['ChestBox (Rectangle) coord 0'].values[0]
     size_box_y = this_row['ChestBox (Rectangle) coord 3'].values[0] - this_row['ChestBox (Rectangle) coord 1'].values[0]
     x_multiplier = average_size_box_x/size_box_x
     y_multiplier = average_size_box_y/size_box_y
-    #adjust coordinates to include max margins
     start_x = int(round(max_margins[0]-this_row['ChestBox (Rectangle) coord 0'].values[0]*x_multiplier))
     end_x = start_x + int(round(this_row['image_size_x'].values[0]*x_multiplier))
     start_y = int(round(max_margins[1]-this_row['ChestBox (Rectangle) coord 1'].values[0]*y_multiplier))
@@ -202,47 +200,17 @@ for et_path in list_et:
     assert(end_y<=final_shape_average[0])
     assert(end_x<=final_shape_average[1])
     
-    #sum to accumulated image
+    #crop the average heatmap to correspond to the field-of-view of the current image nad resize it to the same size as the image
     cropped_average = average_heatmap[start_y:end_y,start_x:end_x]
     destination_shape = (int(round(this_row['image_size_x'].values[0])), int(round(this_row['image_size_y'].values[0])))
     localized_heatmap = cv2.resize(cropped_average, dsize = destination_shape, interpolation=cv2.INTER_LINEAR)
     save_normalized_image(np.nan_to_num(localized_heatmap), f'./heatmaps_subtraction_{int(this_phase)}_1' + f'/localized_heatmap_{this_trial}.png')
-    # #transform the average heatmap to the size of this bounding box
-    # size_box_x = this_row['ChestBox (Rectangle) coord 2'].values[0] - this_row['ChestBox (Rectangle) coord 0'].values[0]
-    # size_box_y = this_row['ChestBox (Rectangle) coord 3'].values[0] - this_row['ChestBox (Rectangle) coord 1'].values[0]
-    # x_multiplier = size_box_x/average_size_box_x
-    # y_multiplier = size_box_y/average_size_box_y
-    # destination_shape = (round(final_shape_average[1]*x_multiplier), round(final_shape_average[0]*y_multiplier))
-    # resized_heatmap = cv2.resize(average_heatmap, dsize = destination_shape, interpolation=cv2.INTER_LINEAR)
-    # assert((destination_shape[1], destination_shape[0])==resized_heatmap.shape)
-    # 
-    # #adjust coordinates to include max margins
-    # start_x = round(max_margins[0]*x_multiplier-this_row['ChestBox (Rectangle) coord 0'].values[0])
-    # end_x = start_x + round(this_row['image_size_x'].values[0])
-    # start_y = round(max_margins[1]*y_multiplier-this_row['ChestBox (Rectangle) coord 1'].values[0])
-    # end_y = start_y + round(this_row['image_size_y'].values[0])
-    # 
-    # localized_heatmap = resized_heatmap[start_y:end_y,start_x:end_x]
     assert(localized_heatmap.shape==(this_row['image_size_y'].values[0],this_row['image_size_x'].values[0]))
     assert((localized_heatmap==localized_heatmap).all())
-    #save new heatmap
-    previous_localized_heatmap = localized_heatmap.copy()
-    localized_heatmap[:,-1] = np.nan_to_num(localized_heatmap[:,-1])
-    localized_heatmap[:,0] = np.nan_to_num(localized_heatmap[:,0])
-    localized_heatmap[0,:] = np.nan_to_num(localized_heatmap[0,:])
-    localized_heatmap[-1,:] = np.nan_to_num(localized_heatmap[-1,:])
-    
-    # print(previous_localized_heatmap[1:-1, 1:-1])
-    # print(localized_heatmap[1:-1, 1:-1])
-    # print(np.where(localized_heatmap[1:-1, 1:-1]!=previous_localized_heatmap[1:-1, 1:-1]))
-    # print(np.where((previous_localized_heatmap[1:-1, 1:-1] == localized_heatmap[1:-1, 1:-1])==False))
-    assert((previous_localized_heatmap[1:-1, 1:-1] == localized_heatmap[1:-1, 1:-1]).all())
     assert(np.sum(localized_heatmap)>0)
     assert(not np.isnan(localized_heatmap).any())
     
-    info_dict = {'np_image': localized_heatmap/np.sum(localized_heatmap), 'img_path': loaded_pickle['img_path'], 'trial': this_trial}
-    
-    
+    #loading the heatmap from the radiologists gaze
     index_user = int(et_path.split('/')[-1].split('_')[1].split('.')[0])
     loaded_pickle = np.load(et_path, allow_pickle=True).item()
     rows_this_trial = metadata_table[metadata_table['image']==loaded_pickle['img_path']]
@@ -252,10 +220,10 @@ for et_path in list_et:
     imsize = [None, None]
     imsize[0] = rows_this_trial['image_size_x'].values[index_user]
     imsize[1] = rows_this_trial['image_size_y'].values[index_user]
-    
     et_map = loaded_pickle['np_image']
     
-    ellipses_table= pd.read_csv(f'built_dataset/main_data/{id}/anomaly_location_ellipses.csv')
+    #comparing both of the heatmaps to the union of drawn ellipses
+    ellipses_table= pd.read_csv(f'{reflacx_dataset_location}/main_data/{id}/anomaly_location_ellipses.csv')
     if len(ellipses_table)>0:
         ellipse_map = get_ellipses_image(ellipses_table[['xmin','ymin','xmax','ymax']].values, imsize)
         save_normalized_image(np.nan_to_num(et_map), f'./heatmaps_subtraction_{int(this_phase)}_1' + f'/et_heatmap_{this_trial}_{index_user}.png')
@@ -274,5 +242,3 @@ print('stdbase:',np.std(base, ddof = 1))
 print('this_et:',np.sum(this_et)/len(this_et))
 print('nthis_et:',len(this_et))
 print('stdthis_et:',np.std(this_et, ddof = 1))
-
-    # np.save(folder_name + '/' + str(this_trial), info_dict)

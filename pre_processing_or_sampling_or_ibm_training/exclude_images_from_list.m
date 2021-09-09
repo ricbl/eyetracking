@@ -1,3 +1,5 @@
+% script that removes images with anonymizing rectangles over the lungs from the list of sampled images for phase 3
+
 % list_name = 'image_paths_experiments_1.txt';
 % images_to_exclude = [36 120 182 280 407 464 516 331 600];
 % list_name = 'image_paths_experiments_2.txt';
@@ -10,6 +12,7 @@
 
 list_name = 'image_paths_experiments_5.txt';
 images_to_exclude = [1,54,74,96,106,110,112,150,159,275,295,319,352,353,380,396,480,544,549,560,579,648];
+
 filenames = readtable(['datasets/mimic/image_lists_before_filter/' list_name],'ReadVariableNames',false, 'Delimiter', ',');
 filenames(images_to_exclude,:) = [];
 writetable(filenames,['datasets/mimic/image_lists/' list_name],'WriteVariableNames',0)

@@ -1,17 +1,19 @@
 function generate_mimic_image_lists_per_user
-    filepath_metadata = '../../datasets/mimic/tables/mimic-cxr-2.0.0-metadata.csv';
-    filepath_labels = '../../datasets/mimic/tables/mimic-cxr-2.0.0-chexpert.csv';
-    filepath_images_filepaths = '../../datasets/mimic/tables/cxr-record-list.csv';
-    filepath_splits = '../../datasets/mimic/tables/mimic-cxr-2.0.0-split.csv';
+%function to sample MIMIC-CXR images used during the experiments, generating a list of image paths
+    filepath_metadata = '../datasets/mimic/tables/mimic-cxr-2.0.0-metadata.csv';
+    filepath_labels = '../datasets/mimic/tables/mimic-cxr-2.0.0-chexpert.csv';
+    filepath_images_filepaths = '../datasets/mimic/tables/cxr-record-list.csv';
+    filepath_splits = '../datasets/mimic/tables/mimic-cxr-2.0.0-split.csv';
     
-    %exclude files used for training that were already seen by radiologists
-    files_exclude = {'../../datasets/mimic/image_lists/image_paths_learning_1.txt'};
-    exclude_study_ids = [];
-    for index_file_exclude = 1:length(files_exclude)
-        this_study_ids = readtable(files_exclude{index_file_exclude},'ReadVariableNames',false);
-        this_study_ids = this_study_ids.('Var8');
-        exclude_study_ids = [exclude_study_ids; cell2mat(cellfun(@(x) str2num(x(2:end)), this_study_ids, 'un', 0))];
-    end
+    %if there is a list of images you would like to exclude, include it here
+    % we used this code to exclude a list of random images from the dataset used for training the radiologists to use the interface
+    %files_exclude = {'../datasets/mimic/image_lists/image_paths_learning_1.txt'};
+    %exclude_study_ids = [];
+    %for index_file_exclude = 1:length(files_exclude)
+    %    this_study_ids = readtable(files_exclude{index_file_exclude},'ReadVariableNames',false);
+    %    this_study_ids = this_study_ids.('Var8');
+    %    exclude_study_ids = [exclude_study_ids; cell2mat(cellfun(@(x) str2num(x(2:end)), this_study_ids, 'un', 0))];
+    %end
     name_lists = {'preexperiment','experiments'};
     n_lists = [40,15];
     n_images = [80,650];
@@ -72,7 +74,7 @@ function generate_mimic_image_lists_per_user
                     current_paths_index_test = current_paths_index_test+1;
                 end
             end
-            writecell(strcat('physionet.org/files/mimic-cxr/2.0.0/',selected_paths'),strcat('../../datasets/mimic/image_lists_4/image_paths_',name_lists{current_list_type},'_',num2str(local_list_index),'.txt'));
+            writecell(strcat('physionet.org/files/mimic-cxr/2.0.0/',selected_paths'),strcat('../datasets/mimic/image_lists_4/image_paths_',name_lists{current_list_type},'_',num2str(local_list_index),'.txt'));
         end
     end
     rng(original_rng_sate);
@@ -98,7 +100,7 @@ function generate_mimic_image_lists_per_user
             end
             selected_paths{local_image_index} =  this_row.('path'){1};
         end
-        writecell(strcat('physionet.org/files/mimic-cxr/2.0.0/',selected_paths),strcat('../../datasets/mimic/image_lists_4/image_paths_learning_',num2str(local_list_index),'.txt'));
+        writecell(strcat('physionet.org/files/mimic-cxr/2.0.0/',selected_paths),strcat('../datasets/mimic/image_lists_4/image_paths_learning_',num2str(local_list_index),'.txt'));
     end
 end
 

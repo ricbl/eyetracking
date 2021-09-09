@@ -1,14 +1,20 @@
-#!/usr/bin/env python
-# coding: utf-8
+# generates a heatmap from all the fixations of a dicatation, using gaussians to represent the uncertatiny of location of each fixation
+# this script has to be run before running the get_ncc_for_localization_in_et_data script
+# this script is relatively slow given the large number of high resolution gaussians being drawn
+# example of
+# - how to generate heatmaps
 
 import pandas as pd
 import numpy as np
 from scipy.stats import multivariate_normal
 import csv
 import pathlib
+from dataset_locations import reflacx_dataset_location
 
-eyetracking_dataset_path = 'built_dataset/main_data/'
+eyetracking_dataset_path = f'{reflacx_dataset_location}/main_data/'
 def get_gaussian(y,x,sy,sx, sizey,sizex, shown_rects_image_space):
+    
+    # displace center coordinates because gaussian will be drawn to an array representing only shown parts of the image
     mu = [y-shown_rects_image_space[1],x-shown_rects_image_space[0]]
     sig = [sy**2,sx**2]
     x = np.arange(0, shown_rects_image_space[2]-shown_rects_image_space[0], 1)
@@ -18,16 +24,23 @@ def get_gaussian(y,x,sy,sx, sizey,sizex, shown_rects_image_space):
     pos[:, :, 1] = X
     pos[:, :, 0] = Y
     to_return = np.zeros([sizey,sizex])
+    
+    #limit the gaussian to only be drawn over shown parts of the image
     to_return[int(round(shown_rects_image_space[1])):int(round(shown_rects_image_space[3])), int(round(shown_rects_image_space[0])):int(round(shown_rects_image_space[2]))] = multivariate_normal(mu, sig).pdf(pos)
+    
     return to_return
 
 def create_heatmap(sequence_table, size_x, size_y):
     img = np.zeros((size_y, size_x), dtype=np.float32)
     for index, row in sequence_table.iterrows():
+        #gaussian with 1 degree of visual angle as its standard deviation
         angle_circle = 1
         shown_rects_image_space = [round(row['xmin_shown_from_image']) ,round(row['ymin_shown_from_image']),round(row['xmax_shown_from_image']),round(row['ymax_shown_from_image'])]
         gaussian = get_gaussian(row['y_position'],row['x_position'], row['angular_resolution_y_pixels_per_degree']*angle_circle, row['angular_resolution_x_pixels_per_degree']*angle_circle, size_y,size_x, shown_rects_image_space)
+        
+        #give higher weight for fixations that last longer
         img += gaussian*(row['timestamp_end_fixation']-row['timestamp_start_fixation'])
+    #normalize heatmap to a gaze probabitly map
     return img/np.sum(img)
 
 def create_heatmaps(data_folder, filename_phase, folder_name='heatmaps', phase = None):

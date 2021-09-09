@@ -1,3 +1,5 @@
+# writes the list of "other" labels to a csv file to be standardizd. The file is formatted in the same way that the create_main_table script reads it
+
 import pandas as pd
 from collections import defaultdict, OrderedDict
 import numpy
@@ -32,7 +34,7 @@ def get_classes_from_csv(csv_file, results_csv, user, data_folder, original_tran
         data_table_this_trial = data_table[data_table['trial'] == trial]
         if len(data_table_this_trial[data_table_this_trial['screen']==5])==0:
             continue
-        #get labels (from screens 4 and 7 combined)
+        #get labels (from screen 5)
         data_table_transcription_this_trial = get_last_saved_screen(data_table_this_trial, trial, 5,title_start = title_start, class_start = class_start)
         transcription = str(data_table_transcription_this_trial[data_table_transcription_this_trial['messenger'] == 'TextBox']['value'].values[0])
         new_row = {'user':user, 'trial':trial, 'transcription':transcription.strip()}
@@ -42,12 +44,12 @@ def get_classes_from_csv(csv_file, results_csv, user, data_folder, original_tran
 
 import glob
 
-def analyze_interrater_reliability():
+def get_list_other():
     phase = 'phase_3'
     title_start = 'index_start_screen_trial'
     class_start = 'MainWindow'
     
-    data_folders = glob.glob(f"anonymized_collected_data/{phase}/*/")
+    data_folders = glob.glob(f"../anonymized_collected_data/{phase}/*/")
     results_csv = pd.DataFrame()
     original_transcriptions_csv = pd.DataFrame()
     for index_data_folder,data_folder in enumerate(sorted(data_folders)):
@@ -57,4 +59,4 @@ def analyze_interrater_reliability():
     
     results_csv.to_csv(f'other_phase_{phase}.csv')
 
-analyze_interrater_reliability()
+get_list_other()
