@@ -1,6 +1,6 @@
 # Code for REFLACX dataset
 
-This code was used to collect, process, and validate the REFLACX (Reports and Eye-Tracking Data for Localization of Abnormalities in Chest X-rays) dataset. This dataset contains 3,032 cases of eye-tracking data collected while a radiologist dictated reports for images from the MIMIC-CXR dataset, paired and synchronized with timestamped transcriptions of the dictations. It also contains manual labels for each image, including bounding boxes localizing the lungs+heart and labels (image-level abnormalities, and localization of abnormalities through drawn ellipses) used to validate algorithms that find implicit localization of abnormalities from eye-tracking + transcription.
+This code was used to collect, process, and validate the REFLACX (Reports and Eye-Tracking Data for Localization of Abnormalities in Chest X-rays) dataset. This dataset contains 3,032 cases of eye-tracking data collected while a radiologist dictated reports for images from the MIMIC-CXR dataset, paired and synchronized with timestamped transcriptions of the dictations. It also contains manual labels for each image, including bounding boxes localizing the lungs+heart and labels (image-level abnormalities and localization of abnormalities through drawn ellipses) used to validate algorithms that find implicit localization of abnormalities from eye-tracking + transcription.
 
 ## How to use this code
 
@@ -15,30 +15,79 @@ Below we provide a short description of each folder and the recommended order fo
 Code used to generate information needed for running data-collection sessions.
 
 To get the list of images to show to radiologists:
-1. `generate_mimic_image_lists_per_user.m` 
-2. `download_mimic_files_from_list.m`
-3. manually find, between the sampled images, excessively rotated images, clearly flipped images, images with anonymizing rectangles intersecting the lungs, images with a large part of the lungs missing.
-4. `exclude_images_from_list.m`
+1. Place tables from the MIMIC-CXR dataset in `datasets/mimic/tables/`
+2. Run `generate_mimic_image_lists_per_user.m` 
+3. Run `download_mimic_files_from_list.m`
+4. Run `copy_list_to_folder_for_checking.m`
+5. manually find, between the sampled images, excessively rotated images, clearly flipped images, images with anonymizing rectangles intersecting the lungs, images with a large part of the lungs missing.
+6. Run `exclude_images_from_list.m`
 
 To train the speech-to-text model:
-1. `copy_mimic_reports_for_ibm_preprocessing.py`
-2. `create_ibm_model.py`
+1. Place reports from the MIMIC-CXR dataset in `datasets/mimic/reports/`
+2. Run `copy_mimic_reports_for_ibm_preprocessing.py`
+3. Put the credentials of the IBM Watson account in `credentials/ibm_credentials_sci.json` (check `create_ibm_model.py` for the needed keywords)
+4. Run `create_ibm_model.py`
+
+For a list of expressions used as a sign that a sentence in a report referred to another study, check the `list_of_unwanted_expressions` variable in `copy_mimic_reports_for_ibm_preprocessing.py`. Sentences with any of these expressions were not used in the training of the IBM Watson Speech-to-text models.
+
+For a list of transcription errors automatically corrected before the editing by the radiologists, check the `replace_dict` variable in `interface_src/scripts/convert_audio_to_text_ibm.py`.
 
 ### interface_src
 
-To start the MATLAB interface for data collection, run `interface_src/interface/xray_et.m`.
+To start the MATLAB interface for data collection, initialize MATLAB with the`ptb3-matlab` command line command and run `interface_src/interface/xray_et.m`.
 
+#### Quick instructions for the use of the interface
+
+##### General
+- The meaning of each argument from the interface configuration window is commented in the `xray_et.m` script.
+- Instructions for what to do on each screen are shown in the interface.
+- Use the "Save And Exit" button to exit the interface properly. Alt + E exits the interface when in the middle of a case, but, when used, data is not fully saved for that case. Avoid clicking Ctrl + C because it may make the interface unresponsive.
+- Cases with red warnings on the last screen should be discarded.
+
+##### Chest x-rays
+- Right mouse button controls windowing. Dragging the mouse up and down controls window width, while left and right controls window level.
+- Middle mouse wheel or up/down arrow control zooming.
+- Drag the mouse with the middle mouse button clicked for panning.
+- Drag with the left mouse button pressed to draw ellipses and bounding boxes, when available.
+
+##### Dictation screen
+- Punctuations have to be dictated: comma, period, or slash.
+- Audio recording is automatic.
+
+##### Text editing
+- Drag with the left mouse button pressed to select.
+- Click the left mouse button to change the cursor position.
+- Double click the left mouse button to select a word.
+- Use Ctrl + z to undo.
+- Use Ctrl + a to redo.
+- Use Ctrl + q to cut.
+- Use select + deselect to copy.
+- Use the right mouse button to paste.
+- Use arrows to navigate the cursor.
+
+##### Drawing ellipses
+- Ellipses are not mandatory for Support Devices and Other labels.
+- The certainty of past bounding boxes is shown with the following code:
+  - 1 for "Unlikely"
+  - 3 for "Less Likely"
+  - 5 for "Possibly"
+  - 7 for for "Suspicious for/Probably"
+  - 9 for "Consistent with".
+- Click out of the ellipse you are currently drawing to reset it.
+- The next screen button is disabled if an ellipse is being edited but is not saved.
+ 
 ### post_processing_and_dataset_generation
 
 Code used to generate the dataset from the collected data:
-1. `check_wrong_times_in_edf.py`
-2. manually create the discard_cases.csv file
-3. `get_csv_to_check_transcriptions.py` and `get_list_other.py`
-4. manually correct and standardize the transcriptions and "Other" labels
-5. `joint_transcription_timestamp.py`
-6. `analyze_interrater.py`, `analyze_interrater_phase_2.py`, and  `analyze_interrater_phase_3.py`
-7. `ASC2MAT.py`
-8. `create_main_table.py`
+1. Place the folders of the experiments to be transformed into the dataset inside the folders `anonymized_collected_data/phase_1`, `anonymized_collected_data/phase_2`, and `anonymized_collected_data/phase_3`
+2. Run `check_wrong_times_in_edf.py`
+3. Manually create the discard_cases.csv file, listing the cases to discard for all reasons, with columns `trial` (int), `user` (string), and `phase` (int)
+4. Run `get_csv_to_check_transcriptions.py` and `get_list_other.py`
+5. Manually correct and standardize the transcriptions and "Other" labels, placing the corresponding tables in `anonymized_collected_data/phase_<phase>/`
+6. Run `joint_transcription_timestamp.py`
+7. Run `analyze_interrater.py`, `analyze_interrater_phase_2.py`, and  `analyze_interrater_phase_3.py`
+8. Run `ASC2MAT.py`
+9. Run `create_main_table.py`
 
 
 ### examples_and_paper_numbers
@@ -46,14 +95,16 @@ Code used to generate the dataset from the collected data:
 Code used to validate the dataset's quality and provide some examples of how to use it. Before running any script, modify the file `dataset_locations.py` to reflect your local setup.
 
 To validate the presence of localization information in the eye-tracking data:
-1. `generate_heatmaps.py`
-2. `get_ncc_for_localization_in_et_data.py`
+1. Run `generate_heatmaps.py`
+2. Run `get_ncc_for_localization_in_et_data.py`
 
 To calculate the agreement between radiologists in terms of manual labeling: `interrater.py`
 
 A list of the images from the MIMIC-CXR dataset from which displayed chest x-rays were sampled:`image_all_paths.txt`
 
 To get the statistics for the `image_all_paths.txt` images: `get_filtered_mimic_statistics.py` and `get_sex_statistics_datasets.py`
+
+The tables used to calculate some of the numbers shown in the paper are in: `tables_calculations/`. These tables are modified from the csv files generated by other scripts.
 
 We also provide examples of:
 - how to load tables of manual labels from the dataset: `interrater.py`
@@ -89,6 +140,7 @@ The following scripts need additional data not provided with the public dataset:
 * nltk 3.5
 * syllables 1.0.0
 * moviepy 1.0.3
+* opencv 3.4.2
 
 ### EyeLink
 * edfapi 3.1

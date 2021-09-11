@@ -93,14 +93,14 @@ def open_dicom(filpath_image_this_trial):
         return x, starting_windowing_level, starting_windowing_width
 
 def main():
-    et_dataset_location = reflacx_dataset_location
+    et_dataset_location = f'{reflacx_dataset_location}/main_data/'
     mimic_dataset_location = mimiccxr_images_location
-    id = 'P102R601623'
+    id = 'P300R889090'
     get_brightness_one_image(et_dataset_location, mimic_dataset_location, id)
 
 def get_brightness_one_image(et_dataset_location, mimic_dataset_location, id):
     table_et_pt1 = pd.read_csv(f'{et_dataset_location}/{id}/fixations.csv')
-    main_table = pd.read_csv(f'{et_dataset_location}/metadata_phase_1.csv')
+    main_table = pd.read_csv(f'{et_dataset_location}/metadata_phase_{id[1]}.csv')
     image_filepath = main_table[main_table['id']==id]['image'].values
     assert(len(image_filepath)==1)
     max_time_fixation = max(table_et_pt1['timestamp_end_fixation'].values)

@@ -123,7 +123,7 @@ classdef MainWindow  < handle
                 s.structured_output.add_message('MainWindow', 'error_message_transcription', printed_n_lines);
                 if ~isfile([s.last_transcription_filename, '_1.0.txt'])
                     fileID = fopen([s.last_transcription_filename, '_1.0.txt'],'w');
-%                     fprintf(fileID,printed_n_lines);
+                    %fprintf(fileID,printed_n_lines);
                     fprintf(fileID,'error');
                     fclose(fileID);
                     fileID = fopen([s.last_transcription_filename, '_1.0_trim.txt'],'w');

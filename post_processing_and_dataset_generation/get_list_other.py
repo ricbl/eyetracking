@@ -44,11 +44,24 @@ def get_classes_from_csv(csv_file, results_csv, user, data_folder, original_tran
 
 import glob
 
-def get_list_other():
+def get_list_other_all_phases():
+    
+    phase = 'phase_1'
+    title_start = 'index_start_screen_trial'
+    class_start = 'MainWindow'
+    get_list_other(phase, title_start, class_start)
+    
+    phase = 'phase_2'
+    title_start = 'index_start_screen_trial'
+    class_start = 'MainWindow'
+    get_list_other(phase, title_start, class_start)
+    
     phase = 'phase_3'
     title_start = 'index_start_screen_trial'
     class_start = 'MainWindow'
-    
+    get_list_other(phase, title_start, class_start)
+
+def get_list_other(phase, title_start, class_start):
     data_folders = glob.glob(f"../anonymized_collected_data/{phase}/*/")
     results_csv = pd.DataFrame()
     original_transcriptions_csv = pd.DataFrame()
@@ -59,4 +72,4 @@ def get_list_other():
     
     results_csv.to_csv(f'other_phase_{phase}.csv')
 
-get_list_other()
+get_list_other_all_phases()

@@ -49,15 +49,23 @@ def get_classes_from_csv(csv_file, results_csv, user, data_folder, original_tran
 
 import glob
 
-def analyze_interrater_reliability():
+def get_transcriptions_all_phases():
     phase = 'phase_1'
     title_start = 'index_start_screen_trial'
     class_start = 'MainWindow'
+    get_transcriptions_phase(phase, title_start, class_start)
     
-    # phase = 'phase_3'
-    # title_start = 'trim_start'
-    # class_start = 'ScreenTranscriptionEditing'
+    phase = 'phase_2'
+    title_start = 'trim_start'
+    class_start = 'ScreenTranscriptionEditing'
+    get_transcriptions_phase(phase, title_start, class_start)
     
+    phase = 'phase_3'
+    title_start = 'trim_start'
+    class_start = 'ScreenTranscriptionEditing'
+    get_transcriptions_phase(phase, title_start, class_start)
+
+def get_transcriptions_phase(phase, title_start, class_start):
     data_folders = glob.glob(f"../anonymized_collected_data/{phase}/*/")
     results_csv = pd.DataFrame()
     original_transcriptions_csv = pd.DataFrame()
@@ -69,4 +77,4 @@ def analyze_interrater_reliability():
     results_csv.to_csv(f'modified_t_{phase}.csv')
     original_transcriptions_csv.to_csv(f'original_t_{phase}.csv')
 
-analyze_interrater_reliability()
+get_transcriptions_all_phases()

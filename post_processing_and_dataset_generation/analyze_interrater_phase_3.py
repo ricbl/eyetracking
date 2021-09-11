@@ -194,7 +194,7 @@ def convert_center_axis_to_corners(rect):
 import glob
 
 def analyze_interrater_reliability():
-    data_folders = glob.glob("anonymized_collected_data/phase_3/*/")
+    data_folders = glob.glob("../anonymized_collected_data/phase_3/*/")
     discard_df = pd.read_csv('./discard_cases.csv')
     labels_table = defaultdict(dict)
     chest_table = defaultdict(dict)
@@ -205,7 +205,7 @@ def analyze_interrater_reliability():
     for index_data_folder,data_folder in enumerate(data_folders):
         print(data_folder)
         user = data_folder.split('/')[-2].split('_')[0]
-        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv(data_folder +'/structured_output.csv', results_csv, user, 'anonymized_collected_data/phase_3/phase_3_transcriptions_anon.csv')
+        answers, results_csv, all_coord_chest, all_coord_box, all_certainty_box,all_index_box = get_classes_from_csv(data_folder +'/structured_output.csv', results_csv, user, '../anonymized_collected_data/phase_3/phase_3_transcriptions_anon.csv')
         labels_table[user].update(answers)
         chest_table[user].update(all_coord_chest)
         box_table[user].update(all_coord_box)

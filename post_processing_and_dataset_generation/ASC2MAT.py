@@ -8,6 +8,7 @@ import re
 import numpy as np
 import glob
 import math
+import pathlib
 
 import csv
 
@@ -844,7 +845,7 @@ def create_csv_gaze_phase_3():
             chest_box_image = [x1,y1,x2,y2]
             list_of_et_suffix = ['', 'pt2']
             for et_suffix in list_of_et_suffix:
-                trial_filename = root_folders+folder.replace('anonymized_collected_data','anonymized_collected_data_full_samples')+'/et'+str(trial)+et_suffix+'.asc'
+                trial_filename = root_folders+folder+'/et'+str(trial)+et_suffix+'.asc'
                 if os.path.isfile(trial_filename):
                     image_filepath = results_df_this_user_this_trial[results_df_this_user_this_trial['title']=='filepath']['value'].values
                     assert(len(image_filepath)==1)
@@ -920,6 +921,7 @@ def create_csv_gaze_phase_1():
     df.to_csv('./summary_edf_phase_1.csv')
 
 if __name__ == '__main__':
+    pathlib.Path(f'./samples').mkdir(parents=True, exist_ok=True) 
     create_csv_gaze_phase_1()
     create_csv_gaze_phase_2()
     create_csv_gaze_phase_3()

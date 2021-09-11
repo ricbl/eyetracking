@@ -5,6 +5,7 @@ from shutil import copyfile
 import re
 import nltk
 from nltk.tokenize import sent_tokenize
+import pathlib
 
 list_of_unwanted_expressions = ['unchanged','prior','previous','previously',
 'stable','recent','recently','now','chest radiographs','worsening', 'worsened',
@@ -23,6 +24,7 @@ list_of_unwanted_expressions = ['unchanged','prior','previous','previously',
 
 folder_reports = '../datasets/mimic/reports/files/'
 dst = '../ibm/'
+pathlib.Path(dst).mkdir(parents=True, exist_ok=True) 
 
 def multiple_replace(list_of_unwanted_expressions, text):
   regex = re.compile("(%s)" % (r"\b"+r"\b|\b".join(map(re.escape, list_of_unwanted_expressions))+r"\b"))

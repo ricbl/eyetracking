@@ -2,8 +2,7 @@ function xray_et
     !numlockx on
     %get input
     prompt={'\fontsize{24}User identifier','\fontsize{24}Dataset identifier (3 numbers)' '\fontsize{24}ET on? 1 if yes', '\fontsize{24}Continue from last finished case? 1 if yes', '\fontsize{24}Starting case', '\fontsize{24}Total cases completed', '\fontsize{24}Perform live transcription', '\fontsize{24}Time for pupil', '\fontsize{24}Dataset name', '\fontsize{24}BBox from center', '\fontsize{24}Skip instruction screens', '\fontsize{24}Skip chest box', '\fontsize{24}Record Videos'};
-     %def={'test','101','0','1', '1', '0', '0','1','mimic', '0', '0','0','0'};
-     def={'test','101','0','0', '8', '0', '0','1','mimic', '0', '0','0','0'};
+     def={'test','101','0','1', '1', '0', '0','1','mimic', '0', '0','0','0'};
 %     def={'user1','306','1','1', '1', '0', '3','15','mimic', '0', '0','0','0'};
 %     def={'user2','307','1','1', '1', '0', '3','15','mimic', '0', '1','0','0'};
 %     def={'user3','308','1','1', '1', '0', '3','15','mimic', '0', '0','0','0'};
@@ -13,20 +12,57 @@ function xray_et
     options.Interpreter = 'tex';
     userinput=inputdlg(prompt,'Input variables',1,def,options);
     
+    % anonymous identifier for the reader. Used for going back to the same case when restarting data collection and used for grouping cases in some of the analysis
     user_name = userinput{1,1};
+    
+    % this has to match the number listed in the image lists
+    % we used 203 for phase 1, 204 for phase 2, and 301, 302, 303, 304, 305 for phase 3, depending on the reader
     experiment_name = userinput{2,1};
+    
+    % 0 for recording without the eye tracker. 0 is for test
+    % 1 for using the eye tracker. It should be 1 for data collection sessions
     ETon = str2double(userinput{3,1});
+    
+    % 1 for restarting data collection from where it was stopped last session
+    % 0 for choosing the starting case with the rest of the options
+    % this is set to 0 if user is "test"
     load_last = str2double(userinput{4,1});
+    
+    %setting what chest x-ray should be the starting case of this data collection session
+    % set the ordered number of the chest x-ray using the image list order
+    % this config is only used if load_last is 0
     starting_case = str2double(userinput{5,1});
+    
+    % % set how many cases were completed in previous sessions. only for reference of the total of completed cases shown inbetween cases
+    % this config is only used if load_last is 0
     total_cases_completed = str2double(userinput{6,1});
+    
+    % 0 for no trasncription
+    % 3 for ibm transcription
     live_transcription_active = str2double(userinput{7,1});
+    
+    % time in seconds for pupil calibration. it was set to 15 during data-collection sessions
     time_pupil = str2double(userinput{8,1});
+    
+    % use 'mimic'
     dataset_name = userinput{9,1};
+    
+    % 0 for drawing ellipses from the corner
+    % 1 for drawing ellipses from the center
     bbox_from_center = str2double(userinput{10,1});
+    
+    % 0 for showing all instructions between screens
+    % 1 for skipping those instruction screens, except for the dictation instructions
     skip_instruction_screens = str2double(userinput{11,1});
+    
+    % leave it to 0. If 1, will skip the labeling of the chest bounding box. 1 was not used in any dat acollection session
     skip_chest_box = str2double(userinput{12,1});
+    
+    % 0 for not recording the sesssion as a video capture of the screen
+    % 1 for capturing with Psychtoolbox
+    % 2 for capturing with recordmydesktop
     record_video = str2double(userinput{13,1});
-    %bbox_from_center = 1;
+    
     if strcmp(experiment_name(1),'2')
         skip_count = 0;
     else

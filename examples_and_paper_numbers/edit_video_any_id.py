@@ -26,6 +26,7 @@ import librosa
 import pyrubberband
 import soundfile as sf
 from dataset_locations import reflacx_dataset_location, mimiccxr_images_location
+import time
 
 fps = 30.
 #reduce the resolution of the video by using this scaling constant
@@ -251,7 +252,15 @@ def generate_video_for_id(id):
         # text to speech
         tts = SaveTTSFile('./create_video_temp.wav')
         tts.start(row['word'].replace('.', 'period').replace(',','comma').replace('/', 'slash') , row['timestamp_start_word'], row['timestamp_end_word'])
+        for i in range(10):
+            if not os.path.exists('./create_video_temp.wav'):
+                time.sleep(1)
+            else:
+                break
+            if i>10:
+                assert(False)
         del(tts)
+        
         
         # add silence between words if they did not end/start at the same time
         if row['timestamp_start_word']>previous_end:
@@ -264,6 +273,8 @@ def generate_video_for_id(id):
         word_audio = AudioSegment.from_file('./create_video_temp.wav', format="wav")
         word_audio = stretch_audio(word_audio, './create_video_temp.wav', word_audio.duration_seconds/(row['timestamp_end_word'] - row['timestamp_start_word']))
         
+        os.remove('./create_video_temp.wav')
+        
         full_audio += word_audio
         assert(abs(full_audio.duration_seconds - row['timestamp_end_word'])<0.005)
         previous_end = row['timestamp_end_word']
@@ -272,6 +283,7 @@ def generate_video_for_id(id):
     my_clip = my_clip.set_audio(audio_background)
     my_clip.write_videofile(f"movie_{id}.mp4",audio_codec='aac', codec="libx264",temp_audiofile='temp-audio.m4a', 
                      remove_temp=True,fps=30, bitrate = "5000k")
+    os.remove('./create_video_temp.wav')
 
 if __name__ == '__main__':
     #choose what id to generate video for

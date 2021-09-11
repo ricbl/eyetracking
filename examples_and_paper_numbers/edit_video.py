@@ -18,6 +18,7 @@ import pyrubberband
 import soundfile as sf
 from skimage.transform import resize
 from skimage.util import img_as_ubyte
+import time
 
 fps = 30.
 use_digital_audio = True
@@ -291,6 +292,13 @@ def main():
                                 # text to speech
                                 tts = SaveTTSFile('create_video_temp.wav')
                                 tts.start(row[0].replace('.', 'period').replace(',','comma').replace('/', 'slash') , row[1], row[2])
+                                for i in range(10):
+                                    if not os.path.exists('./create_video_temp.wav'):
+                                        time.sleep(1)
+                                    else:
+                                        break
+                                    if i>10:
+                                        assert(False)
                                 del(tts)
                                 
                                 # add silence between words if they did not end/start at the same time
@@ -309,6 +317,7 @@ def main():
                                 previous_end = row[2]
                             full_audio.export("create_video_temp.wav", format="wav")
                             audio_background = mpe.AudioFileClip('create_video_temp.wav')
+                            os.remove('./create_video_temp.wav')
                         else:
                             audio_background = mpe.AudioFileClip(f'{folders[index_trial]}/{trial[index_trial]}.wav')
                             # delay_audio = round(delay_audio*my_clip.fps)/my_clip.fps
@@ -347,5 +356,6 @@ def main():
         final = mpe.concatenate_videoclips(list_of_videos)
         final.write_videofile(f"movie_{extensions[index_trial]}.mp4",audio_codec='aac', codec="libx264",temp_audiofile='temp-audio.m4a', 
                          remove_temp=True,fps=30, bitrate = "5000k")
+        os.remove('./create_video_temp.wav')
 if __name__ == '__main__':
     main()

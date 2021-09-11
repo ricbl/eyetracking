@@ -268,7 +268,7 @@ def get_all_joined_json_phase_3(discard_df):
 
 
     experiment_folders = [item for item in glob.glob('../anonymized_collected_data/phase_3/*/')]
-    results_file = 'anonymized_collected_data/phase_3/phase_3_transcriptions_anon.csv'
+    results_file = '../anonymized_collected_data/phase_3/phase_3_transcriptions_anon.csv'
     get_all_joined_json(experiment_folders, '_phase_3',all_trials, results_file)
 
 def get_all_joined_json_phase_2(discard_df):

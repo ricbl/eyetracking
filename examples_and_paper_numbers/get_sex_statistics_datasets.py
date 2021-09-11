@@ -14,13 +14,16 @@ def get_sex_statistics(phase):
         metadata = pd.concat([pd.read_csv(f'{reflacx_dataset_location}/main_data/metadata_phase_1.csv')[['subject_id']],pd.read_csv(f'{reflacx_dataset_location}/main_data/metadata_phase_2.csv')[['subject_id']],pd.read_csv(f'{reflacx_dataset_location}/main_data/metadata_phase_3.csv')[['subject_id']]])
     else:
         metadata = pd.read_csv(f'{reflacx_dataset_location}/main_data/metadata_phase_{phase}.csv')
-    print('Size:',len(metadata['subject_id'].unique()))
+    print('\n')
+    print('n subjects:',len(metadata['subject_id'].unique()))
     
     joined_table = pd.merge(metadata, patients)
-    print('Size:',len(joined_table['subject_id'].unique()))
+    
+    print('n subjects with sex listed:',len(joined_table['subject_id'].unique()))
     print('Phase:', phase)
     print('Females:',len(joined_table[joined_table['gender']=='F']['subject_id'].unique()))
     print('Males:',len(joined_table[joined_table['gender']=='M']['subject_id'].unique()))
+    print('\n')
     
 get_sex_statistics(1)
 get_sex_statistics(2)

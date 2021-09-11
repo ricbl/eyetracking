@@ -315,7 +315,7 @@ def get_main_table(experiment_folders, phase, all_trials):
                 assert(len(image_y)==1)
                 image_y = int(float(image_y[0]))
                 dicom_id = image_filepath[0].split('/')[-1].split('.')[0]
-                splits = pd.read_csv(f'datasets/mimic/tables/mimic-cxr-2.0.0-split.csv')
+                splits = pd.read_csv(f'../datasets/mimic/tables/mimic-cxr-2.0.0-split.csv')
                 split = splits[splits['dicom_id']==dicom_id]['split'].values
                 assert(len(split)==1)
                 check_image_filepath = results_this_id[results_this_id['title']=='filepath']['value'].values

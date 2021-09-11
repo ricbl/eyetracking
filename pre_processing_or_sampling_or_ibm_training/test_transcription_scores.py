@@ -37,8 +37,6 @@ def get_score(ground_truth_location, audio_location, transcription_function):
 def main():
     ground_truth_location = '../ibm/val_documents/'
     transcription_function = lambda entry: tf(entry, '../../credentials/ibm_credentials_sci.json')[0]
-    # path_with_txt = '/home/eye/Documents/projects/eyetracking/ibm/val_audio/language_only/'
-    #transcription_function = lambda x: get_transcription_from_txt(x, path_with_txt)
     audio_location = '../ibm/val_audio/'
     get_score(ground_truth_location, audio_location, transcription_function)
 

@@ -6,7 +6,7 @@ import re
 import os
 
 for phase in range(1,4):
-    data_folders = glob.glob(f"anonymized_collected_data/phase_{phase}/*/")
+    data_folders = glob.glob(f"../anonymized_collected_data/phase_{phase}/*/")
     for folder in data_folders:
         timestamp_this_folder = None
         for trial in range(1,550):

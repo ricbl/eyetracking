@@ -101,10 +101,10 @@ classdef eyetracker2 < handle
            s.structured_output.add_message(messenger,'end_eye_recording');
             Eyelink('StopRecording');
             if s.count_screen==1 & s.trial>0 & ~s.gonne_to_part_2
-                s.part_1_edffile = ['/home/eye/Documents/projects/eyetracking/src/interface/' s.runDir '/' s.edfFile];
+                s.part_1_edffile = [ s.runDir '/' s.edfFile];
                 s.save_edf;
                 s.start_new_et_file('pt2')
-                s.part_2_edffile = ['/home/eye/Documents/projects/eyetracking/src/interface/' s.runDir '/' s.edfFile];
+                s.part_2_edffile = [ s.runDir '/' s.edfFile];
                 s.gonne_to_part_2 = 1;
             end
        end
