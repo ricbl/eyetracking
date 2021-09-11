@@ -155,3 +155,11 @@ The following scripts need additional data not provided with the public dataset:
 * espeak 1.48.04
 * ffmpeg 3.4.8
 * rubberband-cli 1.8.1
+
+## Citing this repository
+
+If you use this software, please cite a Zenodo release:
+
+[![DOI](https://zenodo.org/badge/386056923.svg)](https://zenodo.org/badge/latestdoi/386056923)
+
+
