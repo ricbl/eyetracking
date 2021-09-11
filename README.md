@@ -8,54 +8,54 @@ The code is organized in 4 folders. `pre_processing_or_sampling_or_ibm_training`
 `examples_and_paper_numbers` is provided to show how to get the numbers used to validate the publicly available dataset and a few examples of how to use it.
 All scripts have to be run from inside their respective folders.
 
-Below we provide a short description of each folder and the recommended order for running scripts that depend on the outputs of other scripts or on manually built tables. 
+Below we provide a short description of each folder and the recommended order for running scripts. The provided paths are relative to each of the folders.
 
 ### pre_processing_or_sampling_or_ibm_training
 
 Code used to generate information needed for running data-collection sessions.
 
 To get the list of images to show to radiologists:
-1. Place tables from the MIMIC-CXR dataset in `datasets/mimic/tables/`
+1. Place tables from the MIMIC-CXR and MIMIC-CXR-JPG dataset in `../datasets/mimic/tables/`
 2. Run `generate_mimic_image_lists_per_user.m` 
 3. Run `download_mimic_files_from_list.m`
 4. Run `copy_list_to_folder_for_checking.m`
-5. manually find, between the sampled images, excessively rotated images, clearly flipped images, images with anonymizing rectangles intersecting the lungs, images with a large part of the lungs missing.
+5. Manually find, between the sampled images listed in the `images_check_rectangle/` folder, excessively rotated images, clearly flipped images, images with anonymizing rectangles intersecting the lungs, images with a large part of the lungs missing.
 6. Run `exclude_images_from_list.m`
 
 To train the speech-to-text model:
-1. Place reports from the MIMIC-CXR dataset in `datasets/mimic/reports/`
+1. Place reports  from the MIMIC-CXR dataset (`file`s folder) in `../datasets/mimic/reports/`
 2. Run `copy_mimic_reports_for_ibm_preprocessing.py`
-3. Put the credentials of the IBM Watson account in `credentials/ibm_credentials_sci.json` (check `create_ibm_model.py` for the needed keywords)
+3. Put the credentials of the IBM Watson account in `credentials/ibm_credentials_sci.json` (check the `get_credentials` function in`create_ibm_model.py` for the needed keywords)
 4. Run `create_ibm_model.py`
 
-For a list of expressions used as a sign that a sentence in a report referred to another study, check the `list_of_unwanted_expressions` variable in `copy_mimic_reports_for_ibm_preprocessing.py`. Sentences with any of these expressions were not used in the training of the IBM Watson Speech-to-text models.
+For a list of expressions used as a sign that a sentence in a report referred to another study, check the `list_of_unwanted_expressions` variable in `copy_mimic_reports_for_ibm_preprocessing.py`. Sentences with any of these expressions were not used in the training of the IBM Watson Speech to Text models. Sentences with characters that were not whitespaces, comma, letters or hyphens were also excluded.
 
-For a list of transcription errors automatically corrected before the editing by the radiologists, check the `replace_dict` variable in `interface_src/scripts/convert_audio_to_text_ibm.py`.
+For a list of transcription errors automatically corrected before the editing by the radiologists, check the `replace_dict` variable in `../interface_src/scripts/convert_audio_to_text_ibm.py`.
 
 ### interface_src
 
-To start the MATLAB interface for data collection, initialize MATLAB with the`ptb3-matlab` command line command and run `interface_src/interface/xray_et.m`.
+To start the MATLAB interface for data collection, initialize MATLAB with the`ptb3-matlab` command line command and run `interface/xray_et.m`.
 
 #### Quick instructions for the use of the interface
 
 ##### General
-- The meaning of each argument from the interface configuration window is commented in the `xray_et.m` script.
-- Instructions for what to do on each screen are shown in the interface.
+- The meaning of each argument from the interface configuration window is commented at the beginning of the `interface/xray_et.m` script.
+- Instructions for what to do on each screen are displayed by the interface.
 - Use the "Save And Exit" button to exit the interface properly. Alt + E exits the interface when in the middle of a case, but, when used, data is not fully saved for that case. Avoid clicking Ctrl + C because it may make the interface unresponsive.
 - Cases with red warnings on the last screen should be discarded.
 
 ##### Chest x-rays
-- Right mouse button controls windowing. Dragging the mouse up and down controls window width, while left and right controls window level.
-- Middle mouse wheel or up/down arrow control zooming.
-- Drag the mouse with the middle mouse button clicked for panning.
-- Drag with the left mouse button pressed to draw ellipses and bounding boxes, when available.
+- The right mouse button controls windowing. Dragging the mouse up and down controls window width, while left and right controls window level.
+- The middle mouse wheel or up/down arrow control zooming.
+- Drag with the middle mouse button for panning.
+- Drag with the left mouse button to draw ellipses and bounding boxes, when available.
 
 ##### Dictation screen
-- Punctuations have to be dictated: comma, period, or slash.
+- Punctuations have to be dictated: comma, period, and slash.
 - Audio recording is automatic.
 
 ##### Text editing
-- Drag with the left mouse button pressed to select.
+- Drag with the left mouse button to select.
 - Click the left mouse button to change the cursor position.
 - Double click the left mouse button to select a word.
 - Use Ctrl + z to undo.
@@ -66,8 +66,8 @@ To start the MATLAB interface for data collection, initialize MATLAB with the`pt
 - Use arrows to navigate the cursor.
 
 ##### Drawing ellipses
-- Ellipses are not mandatory for Support Devices and Other labels.
-- The certainty of past bounding boxes is shown with the following code:
+- Ellipses are not mandatory for "Support Devices" and "Other" labels.
+- The certainty of previous bounding boxes is shown in the upper left corner of the screen with the following code:
   - 1 for "Unlikely"
   - 3 for "Less Likely"
   - 5 for "Possibly"
@@ -79,11 +79,11 @@ To start the MATLAB interface for data collection, initialize MATLAB with the`pt
 ### post_processing_and_dataset_generation
 
 Code used to generate the dataset from the collected data:
-1. Place the folders of the experiments to be transformed into the dataset inside the folders `anonymized_collected_data/phase_1`, `anonymized_collected_data/phase_2`, and `anonymized_collected_data/phase_3`
+1. Place the folders of the experiments to be transformed into the dataset inside the folders `../anonymized_collected_data/phase_1`, `../anonymized_collected_data/phase_2`, and `../anonymized_collected_data/phase_3`
 2. Run `check_wrong_times_in_edf.py`
-3. Manually create the discard_cases.csv file, listing the cases to discard for all reasons, with columns `trial` (int), `user` (string), and `phase` (int)
+3. Manually create the `discard_cases.csv` file, listing the cases to discard for all reasons, with columns `trial` (int), `user` (string), and `phase` (int)
 4. Run `get_csv_to_check_transcriptions.py` and `get_list_other.py`
-5. Manually correct and standardize the transcriptions and "Other" labels, placing the corresponding tables in `anonymized_collected_data/phase_<phase>/`
+5. Editing the generated tables, manually correct and standardize the transcriptions and "Other" labels, placing the corresponding tables in `../anonymized_collected_data/phase_<phase>/`
 6. Run `joint_transcription_timestamp.py`
 7. Run `analyze_interrater.py`, `analyze_interrater_phase_2.py`, and  `analyze_interrater_phase_3.py`
 8. Run `ASC2MAT.py`
@@ -98,13 +98,13 @@ To validate the presence of localization information in the eye-tracking data:
 1. Run `generate_heatmaps.py`
 2. Run `get_ncc_for_localization_in_et_data.py`
 
-To calculate the agreement between radiologists in terms of manual labeling: `interrater.py`
+To calculate the agreement between radiologists in terms of manual labeling, run `interrater.py`
 
-A list of the images from the MIMIC-CXR dataset from which displayed chest x-rays were sampled:`image_all_paths.txt`
+`image_all_paths.txt` is a list of the images from the MIMIC-CXR dataset from which displayed chest x-rays were sampled.
 
-To get the statistics for the `image_all_paths.txt` images: `get_filtered_mimic_statistics.py` and `get_sex_statistics_datasets.py`
+To get the statistics for the `image_all_paths.txt` images, run `get_filtered_mimic_statistics.py` and `get_sex_statistics_datasets.py`
 
-The tables used to calculate some of the numbers shown in the paper are in: `tables_calculations/`. These tables are modified from the csv files generated by other scripts.
+The tables used to calculate some of the numbers shown in the paper are in `tables_calculations/`. These tables were modified from the csv files generated by other scripts.
 
 We also provide examples of:
 - how to load tables of manual labels from the dataset: `interrater.py`
@@ -116,7 +116,7 @@ We also provide examples of:
 - how to load the fixations and transcription tables: `edit_video_any_id.py`
 
 The following scripts need additional data not provided with the public dataset:
-- `create_calibration_table.py`, which depends on running `post_processing_and_dataset_generation/ASC2MAT.py` first and was used to calculate the average and maximum error values for the calibrations.
+- `create_calibration_table.py`, which depends on the output from `../post_processing_and_dataset_generation/ASC2MAT.py` and was used to calculate the average and maximum error values for the calibrations.
 - `edit_video.py`, used to generate a video showing interface use through all screens of a case, with all portions recorded by the MATLAB interface.
 
 
