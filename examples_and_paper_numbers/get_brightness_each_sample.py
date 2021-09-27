@@ -95,7 +95,7 @@ def open_dicom(filpath_image_this_trial):
 def main():
     et_dataset_location = f'{reflacx_dataset_location}/main_data/'
     mimic_dataset_location = mimiccxr_images_location
-    id = 'P300R889090'
+    id = 'P300R169761'
     get_brightness_one_image(et_dataset_location, mimic_dataset_location, id)
 
 def get_brightness_one_image(et_dataset_location, mimic_dataset_location, id):

@@ -1,6 +1,6 @@
 # Code for REFLACX dataset
 
-This code was used to collect, process, and validate the REFLACX (Reports and Eye-Tracking Data for Localization of Abnormalities in Chest X-rays) dataset. This dataset contains 3,032 cases of eye-tracking data collected while a radiologist dictated reports for images from the MIMIC-CXR dataset, paired and synchronized with timestamped transcriptions of the dictations. It also contains manual labels for each image, including bounding boxes localizing the lungs+heart and labels (image-level abnormalities and localization of abnormalities through drawn ellipses) used to validate algorithms that find implicit localization of abnormalities from eye-tracking + transcription.
+This code was used to collect, process, and validate the REFLACX (Reports and Eye-Tracking Data for Localization of Abnormalities in Chest X-rays) dataset. This dataset contains 3,032 cases of eye-tracking data collected while a radiologist dictated reports for images from the MIMIC-CXR dataset, paired and synchronized with timestamped transcriptions of the dictations. It also contains manual labels for each image, including bounding boxes localizing the lungs+heart and labels (image-level abnormalities and localization of abnormalities through drawn ellipses) used to validate algorithms that find implicit localization of abnormalities from eye-tracking + transcription. The dataset is available at [https://physionet.org/content/reflacx-xray-localization/1.0.0/](https://physionet.org/content/reflacx-xray-localization/1.0.0/)
 
 ## How to use this code
 
@@ -158,8 +158,10 @@ The following scripts need additional data not provided with the public dataset:
 
 ## Citing this repository
 
-If you use this software, please cite a Zenodo release:
+If you use the dataset, please follow the citation instructions available at [https://doi.org/10.13026/e0dj-8498](https://doi.org/10.13026/e0dj-8498).
 
+
+If you use this software, please cite a Zenodo release:
 [![DOI](https://zenodo.org/badge/386056923.svg)](https://zenodo.org/badge/latestdoi/386056923)
 
 

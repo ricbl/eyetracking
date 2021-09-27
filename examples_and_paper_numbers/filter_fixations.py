@@ -79,4 +79,4 @@ def nearest_distance(rectangle, point,multiplier_x = 1, multiplier_y = 1):
     return min(d_top, d_bottom, d_left, d_right, d_corner)
 
 if __name__ == '__main__':    
-    filter_fixations('P300R889090')
+    filter_fixations('P300R169761')

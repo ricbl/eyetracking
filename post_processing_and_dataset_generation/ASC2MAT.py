@@ -890,6 +890,7 @@ def create_csv_gaze_phase_1():
         for trial_csv_key in trial_csv.keys():
             dfs[user] = dfs[user].append(trial_csv[trial_csv_key], ignore_index=True)
         for trial in range(1,61):
+        
             if user=='user5' and trial in [1, 7, 9]:
                 pupil_normalization, trial_csv = ASC2CSV(root_folders+folder+f'/et{trial-1}.asc', user, None,screen_dictation=[-1], screen_pupil_calibration=2, skip_after_pupil = True, phase = 1 )
             results_df_this_user_this_trial = results_df_this_user[results_df_this_user['trial']!='all']
