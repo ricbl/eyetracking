@@ -7,7 +7,6 @@ data_viewer
 *.EDF
 *.mat
 *.m~
-*.csv
 mimic-sample
 *.json
 *.pkl
