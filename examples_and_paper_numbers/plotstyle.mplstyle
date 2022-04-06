@@ -1,0 +1,9 @@
+xtick.labelsize: 7.91
+ytick.labelsize: 7.91
+font.size: 7.91
+figure.autolayout: True
+axes.titlesize : 7.91
+axes.labelsize : 7.91
+lines.linewidth : 1
+lines.markersize : 6
+legend.fontsize: 7.91
